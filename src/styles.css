@@ -1,0 +1,205 @@
+/* Container for the whole app */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  text-align: center;
+}
+
+/* Query text */
+.query-text {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+/* Result text */
+.result-text {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.result-text.correct {
+  color: green;
+}
+
+.result-text.incorrect {
+  color: red;
+}
+
+/* Images container */
+.images-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* Each image */
+.image {
+  width: 150px;
+  height: 150px;
+  border: 5px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Borders when showing answer */
+.correct-border {
+  border-color: green;
+}
+
+.incorrect-border {
+  border-color: red;
+}
+
+/* Continue button */
+.continue-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+
+.word-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 150px;
+  height: 150px;
+  margin: 10px;
+  font-size: 2rem;         /* big letters */
+  font-weight: bold;
+  text-transform: uppercase;
+  border: 5px solid transparent;
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.word-box:hover {
+  background-color: #e0e0e0;
+}
+
+/* Borders for feedback */
+.correct-border {
+  border-color: green;
+}
+
+.incorrect-border {
+  border-color: red;
+}
+
+/* Disabled state (after answer shown) */
+.disabled {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.app-layout {
+  display: flex;
+  height: 80vh;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  border-top: 1px solid #ddd;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+  z-index: 1000;
+}
+
+.bottom-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+.bottom-nav button .icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.bottom-nav button.active {
+  color: #42ABC7;
+  font-weight: bold;
+  background-color: #F7FDFF;
+  border-top: 3px solid;
+  border-top-color: #42ABC7; 
+}
+
+
+.content-area {
+  flex: 1;
+  padding: 20px;
+}
+
+
+.mic-test-container {
+  text-align: center;
+  padding: 20px;
+}
+
+.mic-test-title {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
+.mic-test-controls {
+  margin-bottom: 20px;
+}
+
+.mic-btn {
+  font-size: 1.1rem;
+  padding: 10px 15px;
+  margin: 5px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.start-btn {
+  background-color: #4caf50;
+  color: white;
+}
+
+.start-btn:disabled {
+  background-color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+.stop-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.replay-btn {
+  background-color: #2196f3;
+  color: white;
+}
+
+.mic-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.mic-test-playback {
+  margin-top: 20px;
+}
