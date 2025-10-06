@@ -1,30 +1,28 @@
-function Test() {
+function Test({ allQuestions }) {
   // =============================================================================
   // STATE DECLARATIONS
   // =============================================================================
-  
-  // CSV data and loading states
-  const [allQuestions, setAllQuestions] = React.useState([]);
+
   const [questions, setQuestions] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
 
   // Persistent states
-const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
+  const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
   const [ageMonths, setAgeMonths] = usePersistentState("ageMonths", "");
   const [ageConfirmed, setAgeConfirmed] = usePersistentState("ageConfirmed", false);
   const [ageInvalid, setAgeInvalid] = usePersistentState("ageInvalid", false);
-  const [currentIndex, setCurrentIndex] = usePersistentState("currentIndex", [0,0,0,0,0]);
-  const [trackProgress, setProgress] = usePersistentState("trackProgress", [0, 0, 0]); // [successes, failures, partials]
-  const [currentLevel, setLevel] = usePersistentState("currentLevel", 0); // 0-4 representing "2:00-2:06", "2:07-3:00", "3:00-4:00", "4:00-5:00", "5:00-6:00"
-  const [phase, setPhase] = usePersistentState("phase", "initial")
-  const [completeMessege, setCompleteMessege] = usePersistentState("completeMessege", "")
-  const [questionType, setQuestionType] = usePersistentState("questionType", "C") // "C" - comprehension(הבנה) "E" - expression(הבעה)
+  const [currentIndex, setCurrentIndex] = usePersistentState("currentIndex", [0, 0, 0, 0, 0]);
+  const [trackProgress, setProgress] = usePersistentState("trackProgress", [0, 0, 0]);
+  const [currentLevel, setLevel] = usePersistentState("currentLevel", 0);
+  const [phase, setPhase] = usePersistentState("phase", "initial");
+  const [completeMessege, setCompleteMessege] = usePersistentState("completeMessege", "");
+  const [questionType, setQuestionType] = usePersistentState("questionType", "C");
 
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
+  const [microphoneSkipped, setMicrophoneSkipped] = usePersistentState("microphoneSkipped", false);
   const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
   const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
-  const [recPaused, setPaused] = usePersistentState("recPaused", false)
+  const [recPaused, setPaused] = usePersistentState("recPaused", false);
 
   // Session-only states
   const [images, setImages] = React.useState([]);
@@ -33,6 +31,13 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
   const [clickedCorrect, setClickedCorrect] = React.useState(false);
   const [sessionCompleted, setSessionCompleted] = React.useState(false);
   const [showAdvancedChoice, setShowAdvancedChoice] = React.useState(false);
+  
+  // Multi-answer and ordered answer states
+  const [answerType, setAnswerType] = React.useState("single"); // "single", "multi", "ordered"
+  const [multiAnswers, setMultiAnswers] = React.useState([]); // Array of correct answer indices
+  const [clickedMultiAnswers, setClickedMultiAnswers] = React.useState([]); // Array of clicked correct answers
+  const [orderedAnswers, setOrderedAnswers] = React.useState([]); // Array of answer indices in order
+  const [orderedClickSequence, setOrderedClickSequence] = React.useState([]); // Sequence of clicks
 
   // Mic session-only
   const [stream, setStream] = React.useState(null);
@@ -43,6 +48,17 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
   const [countdown, setCountdown] = React.useState(0);
   const [recordingStopped, setRecordingStopped] = React.useState(false);
 
+  // Image loading state
+  const [currentQuestionImagesLoaded, setCurrentQuestionImagesLoaded] = React.useState(false);
+
+  const isMountedRef = React.useRef(true);
+
+  React.useEffect(function cleanupMount() {
+    return function() {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // =============================================================================
   // UTILITY FUNCTIONS
   // =============================================================================
@@ -51,16 +67,19 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
     const m = parseInt(ageMonths, 10) || 0;
     return y * 12 + m;
   }
+
   function userAgeGroup(age) {
     const benchmarks = [24, 30.5, 35.5, 47.5, 59.5];
     let i = 0;
     while (i < benchmarks.length - 1 && age >= benchmarks[i + 1]) i++;
     return i;
   }
+
   function ageGroupLabel() {
-    const labels = ["2:00-2:06","2:07-3:00","3:00-4:00","4:00-5:00","5:00-6:00"];
+    const labels = ["2:00-2:06", "2:07-3:00", "3:00-4:00", "4:00-5:00", "5:00-6:00"];
     return labels[currentLevel];
   }
+
   function getCurrentQuestionIndex() {
     return currentIndex[currentLevel];
   }
@@ -82,12 +101,21 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
     }
     const userAge = userAgeGroup(months);
     const initialLevel = Math.max(0, userAge - 1);
-    if (initialLevel === userAge) setPhase("standard");
-    setLevel(initialLevel);
+    
+    // SPECIAL CONDITION 1: Age group 0 can't do [age group] - 1
+    // Start at level 0 with "standard" phase (skip Initial Evaluation)
+    if (userAge === 0) {
+      setPhase("standard");
+      setLevel(0);
+    } else {
+      setPhase("initial");
+      setLevel(initialLevel);
+    }
+    
     setAgeConfirmed(true);
   }
 
-  const getMicrophonePermission = async () => {
+  const getMicrophonePermission = async function() {
     if ("MediaRecorder" in window) {
       try {
         const streamData = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -99,45 +127,96 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
     } else alert("The MediaRecorder API is not supported in your browser.");
   };
 
-  const handleClick = (img) => {
-    if (questionType === "C") {
+  const skipMicrophone = function() {
+    setMicrophoneSkipped(true);
+  };
+
+  const handleClick = function(img) {
+  if (questionType === "C") {
+    // Get the image index (1-based)
+    const imgIndex = images.indexOf(img) + 1;
+    
+    if (answerType === "single") {
+      // Original single-answer behavior
       const correct = img === target;
       if (correct) setClickedCorrect(true);
       setShowContinue(true);
-    }
-  };
+    } else if (answerType === "multi") {
+      // Multi-answer: check if this is a correct answer
+      if (multiAnswers.includes(imgIndex)) {
+        // Add to clicked answers if not already clicked
+        if (!clickedMultiAnswers.includes(imgIndex)) {
+          const newClicked = [...clickedMultiAnswers, imgIndex];
+          setClickedMultiAnswers(newClicked);
+          
+          // Check if all correct answers have been clicked
+          if (newClicked.length === multiAnswers.length) {
+            setClickedCorrect(true);
+            setShowContinue(true);
+          }
+        }
+      }
+      // If wrong answer, do nothing
+    } else if (answerType === "ordered") {
+      // Ordered answer: check if this matches the next expected answer
 
-  const handleContinue = (result) => {
+      if (orderedClickSequence.length > 0 && orderedClickSequence.at(-1) != imgIndex){
+      const newSequence = [orderedClickSequence.at(-1), imgIndex]
+      setOrderedClickSequence(newSequence)
+      setShowContinue(true);
+      if (newSequence[0] === 2 && newSequence[1] === 1) {
+        setClickedCorrect(true);
+      }
+      
+      }
+      else{
+        const newSequence = [imgIndex] 
+        setOrderedClickSequence(newSequence)
+      } 
+    }
+  }
+};
+
+  const handleContinue = function(result) {
     const progress = updateProgress(result);
     const currentIdx = getCurrentQuestionIndex();
-    const [successes, failures] = progress;
     let shouldTransition = false;
     switch (phase) {
       case "initial":
-        if (successes >= 3) { transitionToNextPhase("standard", currentLevel+1); shouldTransition=true; }
-        else if (failures >= 3) {
-          if (currentLevel === 0) return completeSession("Try another time");
-          transitionToNextPhase("reevaluation", currentLevel-1); shouldTransition=true;
+        if (progress[0] >= 3) {
+          transitionToNextPhase("standard", currentLevel + 1);
+          shouldTransition = true;
+        } else if (progress[1] >= 3) {
+          // SPECIAL CONDITION 2: Age group 1, can't go to [age group] - 2 = -1
+          if (currentLevel === 0) {
+            return completeSession("Try another time");
+          }
+          transitionToNextPhase("reevaluation", currentLevel - 1);
+          shouldTransition = true;
         }
         break;
       case "reevaluation":
-        if (successes >= 3) { transitionToNextPhase("easy", currentLevel+1); shouldTransition=true; }
-        else if (failures >= 3) return completeSession("Try another time");
+        if (progress[0] >= 3) {
+          transitionToNextPhase("easy", currentLevel + 1);
+          shouldTransition = true;
+        } else if (progress[1] >= 3) return completeSession("Try another time");
         break;
     }
     if (shouldTransition) return;
-    if (currentIdx < questions.length-1) updateCurrentQuestionIndex(currentIdx+1);
+    if (currentIdx < questions.length - 1) updateCurrentQuestionIndex(currentIdx + 1);
     else handleLevelCompletion();
   };
 
   // Recording controls
-  const startRecording = () => {
+  const startRecording = function() {
     if (!stream) return;
     const recorder = new MediaRecorder(stream);
     setMediaRecorder(recorder);
     const chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
+    recorder.ondataavailable = function(e) {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.onstop = function() {
       const blob = new Blob(chunks, { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
@@ -149,182 +228,510 @@ const [ageYears, setAgeYears] = usePersistentState("ageYears", "");
     setRecording(true);
     setRecordingStopped(false);
 
-    // auto-stop after 1 minute
-    setTimeout(() => {
+    setTimeout(function() {
       if (recorder.state === "recording") recorder.stop();
     }, 60000);
   };
 
-  const pauseRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") 
-      {mediaRecorder.pause();
-        setPaused(true)
-      }
-    else if (mediaRecorder && mediaRecorder.state === "paused") 
-      {mediaRecorder.resume();
-      setPaused(false)}
+  const pauseRecording = function() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.pause();
+      setPaused(true);
+    } else if (mediaRecorder && mediaRecorder.state === "paused") {
+      mediaRecorder.resume();
+      setPaused(false);
+    }
   };
-  const stopRecording = () => { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); };
+
+  const stopRecording = function() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  };
 
   // =============================================================================
   // HELPER FUNCTIONS
   // =============================================================================
   function transitionToNextPhase(newPhase, newLevel) {
-    const clampedLevel = Math.max(0, Math.min(4,newLevel));
+    const clampedLevel = Math.max(0, Math.min(4, newLevel));
     setPhase(newPhase);
     setLevel(clampedLevel);
     resetProgressForNewLevel();
   }
+
   function loadQuestionsForLevel(level) {
     const targetAgeGroup = ageGroupLabel();
     const filtered = allQuestions
-      .filter(q=>q.query && q.query_type && q.age_group)
-      .map(q=>({...q,query_type:q.query_type.trim().normalize("NFC"),age_group:q.age_group.trim().normalize("NFC"),query:q.query.trim()}))
-      .filter(q=>q.age_group===targetAgeGroup);
-    const sorted = filtered.sort((a,b)=> a.query_type==="הבנה" && b.query_type!=="הבנה" ? -1 : 1 );
+      .filter(function(q) {
+        return q && q.query && q.query_type && q.age_group;
+      })
+      .map(function(q) {
+        return {
+          ...q,
+          query_type: q.query_type.trim().normalize("NFC"),
+          age_group: q.age_group.trim().normalize("NFC"),
+          query: (q.query || "").trim(),
+        };
+      })
+      .filter(function(q) {
+        return q.age_group === targetAgeGroup;
+      });
+    const sorted = filtered.sort(function(a, b) {
+      return a.query_type === "הבנה" && b.query_type !== "הבנה" ? -1 : 1;
+    });
     setQuestions(sorted);
   }
-  function updateCurrentQuestionIndex(newIndex) {
-    const newArr = [...currentIndex]; newArr[currentLevel]=newIndex; setCurrentIndex(newArr);
-  }
-  function loadQuestion(index) {
-    const q=questions[index]; if (!q) return;
-    const imgCount=parseInt(q.image_count)||1;
-    const imgs=[]; for (let i=1;i<=imgCount;i++) imgs.push(`resources/test_assets/${q.query_number}/image_${i}.png`);
-    setImages(imgs);
-    const answerNum=q.answer?parseInt(q.answer):1;
-    setTarget(`resources/test_assets/${q.query_number}/image_${answerNum}.png`);
-    setQuestionType(q.query_type==="הבנה" ? "C" : "E");
-    setShowContinue(false); setClickedCorrect(false);
 
-    // If it's E, start countdown
+  function updateCurrentQuestionIndex(newIndex) {
+    const newArr = [].concat(currentIndex);
+    newArr[currentLevel] = newIndex;
+    setCurrentIndex(newArr);
+  }
+
+  function loadQuestion(index) {
+    const q = questions[index];
+    if (!q) return;
+
+    setShowContinue(false);
+    setClickedCorrect(false);
+    setClickedMultiAnswers([]);
+    setOrderedClickSequence([]);
+
+    const imgCount = parseInt(q.image_count, 10) || 1;
+    const imgs = [];
+    for (let i = 1; i <= imgCount; i++) {
+      imgs.push(ImageLoader.getImageUrl(q.query_number, i));
+    }
+
+    // Parse answer field to determine answer type
+    const answerStr = (q.answer || "").trim();
+    
+    if (answerStr.includes(",")) {
+      // Multi-answer type: "1,2,3,4,10"
+      setAnswerType("multi");
+      const answers = answerStr.split(",").map(function(a) {
+        return parseInt(a.trim(), 10);
+      });
+      setMultiAnswers(answers);
+      setTarget(""); // Not used for multi-answer
+    } else if (answerStr.includes("->")) {
+      // Ordered answer type: "2->1"
+      setAnswerType("ordered");
+      const answers = answerStr.split("->").map(function(a) {
+        return parseInt(a.trim(), 10);
+      });
+      setOrderedAnswers(answers);
+      setTarget(""); // Not used for ordered answer
+    } else {
+      // Single answer type (original behavior)
+      setAnswerType("single");
+      const answerNum = parseInt(answerStr, 10) || 1;
+      const targetPath = ImageLoader.getImageUrl(q.query_number, answerNum);
+      setTarget(targetPath);
+      setMultiAnswers([]);
+      setOrderedAnswers([]);
+    }
+
+    setImages(imgs);
+    setQuestionType(q.query_type === "הבנה" ? "C" : "E");
+
+    // Start countdown for expression questions
     if (q.query_type !== "הבנה") {
-      setCountdown(3);
-      setRecordingStopped(false);
+      // If microphone was skipped, show traffic lights immediately
+      if (microphoneSkipped) {
+        setShowContinue(true);
+      } else {
+        setCountdown(3);
+        setRecordingStopped(false);
+      }
     }
   }
+
   function updateProgress(result) {
-    const newP=[...trackProgress];
-    if (result==="success") newP[0]++;
-    if (result==="partial") { newP[2]++; if (newP[2]>=2){ newP[1]++; newP[2]=0; } }
-    if (result==="failure") newP[1]++;
+    const newP = [].concat(trackProgress);
+    if (result === "success") newP[0]++;
+    if (result === "partial") {
+      newP[2]++;
+      if (newP[2] >= 2) {
+        newP[1]++;
+        newP[2] = 0;
+      }
+    }
+    if (result === "failure") newP[1]++;
     setProgress(newP);
     return newP;
   }
+
   function handleLevelCompletion() {
-    const [successes,failures]=trackProgress;
-    switch(phase){
-      case "initial": transitionToNextPhase("standard",currentLevel+1); break;
-      case "reevaluation": transitionToNextPhase("easy",currentLevel+1); break;
-      case "standard": if (failures>=3) transitionToNextPhase("easy",Math.max(0,currentLevel-1)); else setShowAdvancedChoice(true); break;
-      case "easy": completeSession("Well done!"); break;
-      case "hard": completeSession("Well done!"); break;
+    const successes = trackProgress[0];
+    const failures = trackProgress[1];
+    switch (phase) {
+      case "initial":
+        transitionToNextPhase("standard", currentLevel + 1);
+        break;
+      case "reevaluation":
+        transitionToNextPhase("easy", currentLevel + 1);
+        break;
+      case "standard":
+        if (failures >= 3) {
+          transitionToNextPhase("easy", Math.max(0, currentLevel - 1));
+        } else {
+          // SPECIAL CONDITION 3: Age group 4, can't show [age group] + 1 = 5
+          // Don't show advanced choice, just complete the session
+          if (currentLevel >= 4) {
+            completeSession("Well done!");
+          } else {
+            setShowAdvancedChoice(true);
+          }
+        }
+        break;
+      case "easy":
+        completeSession("Well done!");
+        break;
+      case "hard":
+        completeSession("Well done!");
+        break;
     }
   }
-  function resetProgressForNewLevel(){ setProgress([0,0,0]); }
-  function completeSession(msg){ setCompleteMessege(msg); setSessionCompleted(true); setImages([]); }
+
+  function resetProgressForNewLevel() {
+    setProgress([0, 0, 0]);
+  }
+
+  function completeSession(msg) {
+    setCompleteMessege(msg);
+    setSessionCompleted(true);
+    setImages([]);
+  }
+
+  function handleAdvancedChoice(choice) {
+    setShowAdvancedChoice(false);
+    if (choice) {
+      // Move to next age group (currentLevel + 1) for hard questions
+      transitionToNextPhase("hard", currentLevel + 1);
+    } else {
+      completeSession("Finished without advanced questions");
+    }
+  }
+
+  function checkCurrentQuestionImages() {
+    const q = questions[getCurrentQuestionIndex()];
+    if (!q) {
+      setCurrentQuestionImagesLoaded(false);
+      return;
+    }
+    
+    const loaded = ImageLoader.areImagesLoaded(q.query_number, q.image_count);
+    setCurrentQuestionImagesLoaded(loaded);
+  }
 
   // =============================================================================
   // EFFECTS
   // =============================================================================
-  React.useEffect(()=>{ Papa.parse("resources/query_database.csv",{download:true,header:true,complete:(res)=>{setAllQuestions(res.data);setLoading(false);}});},[]);
-  React.useEffect(()=>{ if (allQuestions.length>0 && ageConfirmed) loadQuestionsForLevel(currentLevel);},[currentLevel,allQuestions,ageConfirmed]);
-  React.useEffect(()=>{ if (ageConfirmed && questions.length>0 && !sessionCompleted && !showAdvancedChoice){ const idx=getCurrentQuestionIndex(); loadQuestion(idx);}},[ageConfirmed,questions,currentIndex,currentLevel,sessionCompleted,showAdvancedChoice]);
+
+  // Update priority when age is confirmed or level changes
+  React.useEffect(function updateLoadingPriority() {
+    if (!ageConfirmed || allQuestions.length === 0) return;
+
+    const labels = ["2:00-2:06", "2:07-3:00", "3:00-4:00", "4:00-5:00", "5:00-6:00"];
+    const priorityGroups = [labels[currentLevel]];
+    
+    // Add adjacent levels to priority
+    if (currentLevel > 0) priorityGroups.push(labels[currentLevel - 1]);
+    if (currentLevel < 4) priorityGroups.push(labels[currentLevel + 1]);
+
+    ImageLoader.updatePriority(priorityGroups);
+  }, [ageConfirmed, currentLevel, allQuestions]);
+
+  // Load questions for current level
+  React.useEffect(
+    function loadLevelQuestions() {
+      if (allQuestions.length > 0 && ageConfirmed) {
+        loadQuestionsForLevel(currentLevel);
+      }
+    },
+    [currentLevel, allQuestions, ageConfirmed]
+  );
+
+  // Load current question
+  React.useEffect(
+    function loadCurrentQuestion() {
+      if (ageConfirmed && questions.length > 0 && !sessionCompleted && !showAdvancedChoice) {
+        const idx = getCurrentQuestionIndex();
+        loadQuestion(idx);
+        checkCurrentQuestionImages();
+      }
+    },
+    [ageConfirmed, questions, currentIndex, currentLevel, sessionCompleted, showAdvancedChoice]
+  );
+
+  // Monitor if current question images are loaded
+  React.useEffect(function monitorImageLoading() {
+    if (!ageConfirmed || questions.length === 0 || sessionCompleted || showAdvancedChoice) {
+      return;
+    }
+
+    const interval = setInterval(checkCurrentQuestionImages, 100);
+    return function() {
+      clearInterval(interval);
+    };
+  }, [ageConfirmed, questions, currentIndex, currentLevel, sessionCompleted, showAdvancedChoice]);
 
   // Countdown effect
-  React.useEffect(()=>{
-    if (countdown>0){
-      const timer=setTimeout(()=>setCountdown(c=>c-1),1000);
-      return ()=>clearTimeout(timer);
-    }
-    if (countdown===0 && questionType==="E" && !recording && !recordingStopped) startRecording();
-  },[countdown,questionType]);
-  //continue after recording effect
+  React.useEffect(
+    function countdownEffect() {
+      // Skip countdown if microphone was skipped
+      if (microphoneSkipped) return;
+      
+      if (countdown > 0) {
+        const timer = setTimeout(function() {
+          setCountdown(function(c) {
+            return c - 1;
+          });
+        }, 1000);
+        return function() {
+          clearTimeout(timer);
+        };
+      }
+      if (countdown === 0 && questionType === "E" && !recording && !recordingStopped) {
+        startRecording();
+      }
+    },
+    [countdown, questionType, recording, recordingStopped, microphoneSkipped]
+  );
 
-  React.useEffect(() => {
-  if (recordingStopped) {
-    setShowContinue(true);
+  // Continue after recording
+  React.useEffect(
+    function recordingStoppedEffect() {
+      if (recordingStopped) {
+        setShowContinue(true);
+      }
+    },
+    [recordingStopped]
+  );
+
+  // =============================================================================
+  // RENDER
+  // =============================================================================
+
+  if (!ageConfirmed && !ageInvalid) {
+    return React.createElement(
+      "div",
+      { className: "age-screen" },
+      React.createElement("h2", null, "Please enter your age"),
+      React.createElement("input", {
+        type: "number",
+        placeholder: "Years",
+        value: ageYears,
+        onChange: function(e) {
+          setAgeYears(e.target.value.replace(/\D/g, ""));
+        },
+      }),
+      React.createElement("input", {
+        type: "number",
+        placeholder: "Months",
+        value: ageMonths,
+        onChange: function(e) {
+          setAgeMonths(e.target.value.replace(/\D/g, ""));
+        },
+      }),
+      React.createElement(
+        "button",
+        { onClick: confirmAge },
+        "Continue"
+      )
+    );
   }
-}, [recordingStopped]);
 
-  // =============================================================================
-  // RENDER CONDITIONS
-  // =============================================================================
-  if (loading) return <div>Loading...</div>;
-  if (!ageConfirmed && !ageInvalid) return (
-    <div className="age-screen">
-      <h2>Please enter your age</h2>
-      <input type="number" placeholder="Years" value={ageYears} onChange={e=>setAgeYears(e.target.value.replace(/\D/g,""))}/>
-      <input type="number" placeholder="Months" value={ageMonths} onChange={e=>setAgeMonths(e.target.value.replace(/\D/g,""))}/>
-      <button onClick={confirmAge}>Continue</button>
-    </div>);
-  if (ageInvalid) return <div className="age-invalid">Sorry, this age does not fit.</div>;
-  if (!permission) return <div><button onClick={getMicrophonePermission}>Get Microphone</button></div>;
-  if (sessionCompleted) return <div className="session-complete"><h2>Session Complete!</h2><p>{completeMessege}</p></div>;
-  if (showAdvancedChoice) return (
-    <div className="advanced-choice">
-      <h2>Choice: "Try advanced questions?"</h2>
-      <button onClick={()=>handleAdvancedChoice(true)}>Yes</button>
-      <button onClick={()=>handleAdvancedChoice(false)}>No</button>
-    </div>);
-  if (questions.length===0) return <div>No questions found for current level</div>;
+  if (ageInvalid) {
+    return React.createElement("div", { className: "age-invalid" }, "Sorry, this age does not fit.");
+  }
 
-  const currentIdx=getCurrentQuestionIndex();
-  const phaseNames={"initial":"Initial Evaluation","reevaluation":"Reevaluation","standard":"Standard Test","easy":"Easy Level","hard":"Hard Level"};
+  if (!permission && !microphoneSkipped) {
+    return React.createElement(
+      "div",
+      { className: "microphone-permission-screen" },
+      React.createElement("h2", null, "Microphone Permission"),
+      React.createElement("p", null, "This test includes recording questions. Please allow microphone access."),
+      React.createElement(
+        "button",
+        { onClick: getMicrophonePermission },
+        "Allow Microphone"
+      ),
+      React.createElement(
+        "button",
+        { 
+          onClick: skipMicrophone,
+          style: { marginLeft: "10px", background: "#666" }
+        },
+        "Skip (No Recording)"
+      )
+    );
+  }
 
-  return (
-    <div className="app-container">
-      <div className="test-info">
-        <h3>Phase: {phaseNames[phase]} - Level: {ageGroupLabel()}</h3>
-        <p>Progress: {trackProgress[0]} successes, {trackProgress[1]} failures, {trackProgress[2]} partials</p>
-        <p>Question {currentIdx+1} of {questions.length}</p>
-      </div>
+  if (sessionCompleted) {
+    return React.createElement(
+      "div",
+      { className: "session-complete" },
+      React.createElement("h2", null, "Session Complete!"),
+      React.createElement("p", null, completeMessege)
+    );
+  }
 
-      <div className="question-row">
-        <h2 className="query-text">{questions[currentIdx] && questions[currentIdx].query}</h2>
-        {/* Traffic light shows after recording stops (E) or after clicking (C) */}
-        {showContinue && (
-          <div className="traffic-light">
-            <button className="light green" onClick={()=>handleContinue("success")}></button>
-            <button className="light orange" onClick={()=>handleContinue("partial")}></button>
-            <button className="light red" onClick={()=>handleContinue("failure")}></button>
-          </div>
-        )}
-      </div>
+  if (showAdvancedChoice) {
+    return React.createElement(
+      "div",
+      { className: "advanced-choice" },
+      React.createElement("h2", null, 'Choice: "Try advanced questions?"'),
+      React.createElement(
+        "button",
+        { onClick: function() { handleAdvancedChoice(true); } },
+        "Yes"
+      ),
+      React.createElement(
+        "button",
+        { onClick: function() { handleAdvancedChoice(false); } },
+        "No"
+      )
+    );
+  }
 
-      {/* Question images */}
-      {questionType==="C" && (
-        <div className="images-container">
-          {images.map((img,i)=>(
-            <div key={i} style={{position:"relative"}}>
-              {img===target && clickedCorrect && (
-                <img src="resources/test_assets/general/fireworks.png" className="fireworks" alt="celebration"/>
-              )}
-              <img src={img} alt={`option ${i+1}`} className="image" onClick={()=>handleClick(img)}/>
-            </div>
-          ))}
-        </div>
-      )}
+  if (questions.length === 0) {
+    return React.createElement("div", null, "No questions found for current level");
+  }
 
-      {questionType==="E" && (
-        <div className="expression-container">
-          {countdown>0 && <h3>Recording starts in {countdown}...</h3>}
-          {recording && <div>
-            {!recPaused && (<button onClick={pauseRecording}>Pause</button>)}
-            {recPaused && (<button onClick={pauseRecording}>Resume</button>)}
-            <button onClick={stopRecording}>Stop</button></div>}
-          {recordingStopped && (
-            <div>
-              <audio src={audioUrl} controls></audio>
-            </div>
-          )}
-          <div className="images-container">
-            {images.map((img,i)=>(
-              <div key={i}><img src={img} alt={`option ${i+1}`} className="image"/></div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+  // Show loading screen ONLY if current question images aren't ready
+  if (!currentQuestionImagesLoaded) {
+    return React.createElement(
+      "div",
+      { className: "question-loading-screen" },
+      React.createElement("h2", null, "Loading question..."),
+      React.createElement("p", null, "Please wait while images load")
+    );
+  }
+
+  const currentIdx = getCurrentQuestionIndex();
+  const phaseNames = {
+    initial: "Initial Evaluation",
+    reevaluation: "Reevaluation",
+    standard: "Standard Test",
+    easy: "Easy Level",
+    hard: "Hard Level"
+  };
+
+  // Main UI
+  return React.createElement(
+    "div",
+    { className: "app-container" },
+    React.createElement(
+      "div",
+      { className: "test-info" },
+      React.createElement("h3", null, "Phase: " + (phaseNames[phase] || phase) + " - Level: " + ageGroupLabel()),
+      React.createElement("p", null, "Progress: " + trackProgress[0] + " successes, " + trackProgress[1] + " failures, " + trackProgress[2] + " partials"),
+      React.createElement("p", null, "Question " + (currentIdx + 1) + " of " + questions.length)
+    ),
+
+    React.createElement(
+      "div",
+      { className: "question-row" },
+      React.createElement("h2", { className: "query-text" }, (questions[currentIdx] && questions[currentIdx].query) || ""),
+      showContinue
+        ? React.createElement(
+            "div",
+            { className: "traffic-light" },
+            React.createElement("button", {
+              className: "light green",
+              onClick: function() { handleContinue("success"); },
+            }),
+            React.createElement("button", {
+              className: "light orange",
+              onClick: function() { handleContinue("partial"); },
+            }),
+            React.createElement("button", {
+              className: "light red",
+              onClick: function() { handleContinue("failure"); },
+            })
+          )
+        : null
+    ),
+
+    questionType === "C"
+      ? React.createElement(
+          "div",
+          { className: "images-container" },
+          images.map(function(img, i) {
+            const imgIndex = i + 1;
+            const isCorrectMulti = answerType === "multi" && clickedMultiAnswers.includes(imgIndex);
+            const isTargetSingle = answerType === "single" && img === target && clickedCorrect;
+            const showFireworks = (isTargetSingle || (answerType === "multi" && clickedCorrect)) || 
+                                  (answerType === "ordered" && clickedCorrect && orderedAnswers[orderedAnswers.length - 1] === imgIndex);
+            
+            return React.createElement(
+              "div",
+              { 
+                key: i, 
+                style: { 
+                  position: "relative",
+                  border: isCorrectMulti ? "4px solid #00ff00" : "none",
+                  borderRadius: isCorrectMulti ? "8px" : "0",
+                  boxShadow: isCorrectMulti ? "0 0 15px rgba(0,255,0,0.6)" : "none"
+                } 
+              },
+              showFireworks
+                ? React.createElement("img", {
+                    src: "resources/test_assets/general/fireworks.webp",
+                    className: "fireworks",
+                    alt: "celebration",
+                  })
+                : null,
+              React.createElement("img", {
+                src: img,
+                alt: "option " + (i + 1),
+                className: "image",
+                onClick: function() { handleClick(img); },
+              })
+            );
+          })
+        )
+      : null,
+
+    questionType === "E"
+      ? React.createElement(
+          "div",
+          { className: "expression-container" },
+          !microphoneSkipped && countdown > 0
+            ? React.createElement("h3", null, "Recording starts in " + countdown + "...")
+            : null,
+          !microphoneSkipped && recording
+            ? React.createElement(
+                "div",
+                null,
+                !recPaused
+                  ? React.createElement("button", { onClick: pauseRecording }, "Pause")
+                  : React.createElement("button", { onClick: pauseRecording }, "Resume"),
+                React.createElement("button", { onClick: stopRecording }, "Stop")
+              )
+            : null,
+          !microphoneSkipped && recordingStopped
+            ? React.createElement(
+                "div",
+                null,
+                React.createElement("audio", { src: audioUrl, controls: true })
+              )
+            : null,
+          microphoneSkipped
+            ? React.createElement("p", { style: { fontStyle: "italic", color: "#666" } }, "Recording skipped - please evaluate the response")
+            : null,
+          React.createElement(
+            "div",
+            { className: "images-container" },
+            images.map(function(img, i) {
+              return React.createElement(
+                "div",
+                { key: i },
+                React.createElement("img", { src: img, alt: "option " + (i + 1), className: "image" })
+              );
+            })
+          )
+        )
+      : null
   );
 }

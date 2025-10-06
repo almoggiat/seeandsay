@@ -24,48 +24,68 @@ function usePersistentState(key, initialValue) {
 
 function App() {
   const [page, setPage] = usePersistentState("page", "home");
+  const [csvLoaded, setCsvLoaded] = React.useState(false);
+  const [allQuestions, setAllQuestions] = React.useState([]);
+
+  // Load CSV and start image loading as soon as the site opens
+  React.useEffect(() => {
+    Papa.parse("resources/query_database.csv", {
+      download: true,
+      header: true,
+      complete: function(res) {
+        const questions = res.data || [];
+        setAllQuestions(questions);
+        setCsvLoaded(true);
+        
+        // Start loading ALL images immediately (no priority yet)
+        ImageLoader.startLoading(questions, []);
+      },
+    });
+  }, []);
 
   // Reset all persistent states
-function resetAll() {
-  // Clear all persistent states
-  localStorage.removeItem("ageYears");
-  localStorage.removeItem("ageMonths");
-  localStorage.removeItem("ageConfirmed");
-  localStorage.removeItem("ageInvalid");
-  localStorage.removeItem("currentIndex");
-  localStorage.removeItem("trackProgress");
-  localStorage.removeItem("currentLevel");
-  localStorage.removeItem("phase");
-  localStorage.removeItem("completeMessege");
-  localStorage.removeItem("questionType")
-  localStorage.removeItem("permission")
-  localStorage.removeItem("audioChunks")
-  localStorage.removeItem("audioUrl")
-  localStorage.removeItem("recPaused")
+  function resetAll() {
+    localStorage.removeItem("ageYears");
+    localStorage.removeItem("ageMonths");
+    localStorage.removeItem("ageConfirmed");
+    localStorage.removeItem("ageInvalid");
+    localStorage.removeItem("currentIndex");
+    localStorage.removeItem("trackProgress");
+    localStorage.removeItem("currentLevel");
+    localStorage.removeItem("phase");
+    localStorage.removeItem("completeMessege");
+    localStorage.removeItem("questionType");
+    localStorage.removeItem("permission");
+    localStorage.removeItem("microphoneSkipped");
+    localStorage.removeItem("audioChunks");
+    localStorage.removeItem("audioUrl");
+    localStorage.removeItem("recPaused");
 
-  // Reload React state to initial values
-  window.location.reload();
-}
-
-  let content;
-  if (page === "test") {
-    content = <Test />;
-  } else if (page === "AudioRecorder") {
-    content = <AudioRecorder />;
-  } else {
-    content = <Welcome />;
+    window.location.reload();
   }
 
-  return (
-    <div className="app-container">
-      <div className="page-content">{content}</div>
-      <BottomNav page={page} setPage={setPage} />
+  let content;
+  if (!csvLoaded) {
+    content = React.createElement("div", null, "Loading...");
+  } else if (page === "test") {
+    content = React.createElement(Test, { allQuestions: allQuestions });
+  } else if (page === "AudioRecorder") {
+    content = React.createElement(AudioRecorder);
+  } else {
+    content = React.createElement(Welcome);
+  }
 
-      {/* Global Reset Button */}
-      <button
-        className="reset-button"
-        onClick={resetAll}
-        style={{
+  return React.createElement(
+    "div",
+    { className: "app-container" },
+    React.createElement("div", { className: "page-content" }, content),
+    React.createElement(BottomNav, { page: page, setPage: setPage }),
+    React.createElement(
+      "button",
+      {
+        className: "reset-button",
+        onClick: resetAll,
+        style: {
           position: "fixed",
           bottom: "80px",
           right: "20px",
@@ -76,13 +96,12 @@ function resetAll() {
           borderRadius: "8px",
           cursor: "pointer",
           zIndex: 1000,
-        }}
-      >
-        Reset
-      </button>
-    </div>
+        },
+      },
+      "Reset"
+    )
   );
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+root.render(React.createElement(App));
