@@ -60,6 +60,7 @@ function App() {
     localStorage.removeItem("audioChunks");
     localStorage.removeItem("audioUrl");
     localStorage.removeItem("recPaused");
+    localStorage.removeItem("showAdvancedChoice");
 
     window.location.reload();
   }
@@ -69,8 +70,8 @@ function App() {
     content = React.createElement("div", null, "Loading...");
   } else if (page === "test") {
     content = React.createElement(Test, { allQuestions: allQuestions });
-  } else if (page === "AudioRecorder") {
-    content = React.createElement(AudioRecorder);
+  } else if (page === "help") {
+    content = React.createElement(Help);
   } else {
     content = React.createElement(Welcome);
   }
@@ -85,18 +86,6 @@ function App() {
       {
         className: "reset-button",
         onClick: resetAll,
-        style: {
-          position: "fixed",
-          bottom: "80px",
-          right: "20px",
-          padding: "10px 16px",
-          background: "red",
-          color: "white",
-          border: "none",
-          borderRadius: "8px",
-          cursor: "pointer",
-          zIndex: 1000,
-        },
       },
       "Reset"
     )

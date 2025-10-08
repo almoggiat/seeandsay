@@ -16,6 +16,7 @@ function Test({ allQuestions }) {
   const [phase, setPhase] = usePersistentState("phase", "initial");
   const [completeMessege, setCompleteMessege] = usePersistentState("completeMessege", "");
   const [questionType, setQuestionType] = usePersistentState("questionType", "C");
+  const [showAdvancedChoice, setShowAdvancedChoice] = usePersistentState("showAdvancedChoice", false); // NOW PERSISTENT
 
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
@@ -30,14 +31,17 @@ function Test({ allQuestions }) {
   const [showContinue, setShowContinue] = React.useState(false);
   const [clickedCorrect, setClickedCorrect] = React.useState(false);
   const [sessionCompleted, setSessionCompleted] = React.useState(false);
-  const [showAdvancedChoice, setShowAdvancedChoice] = React.useState(false);
   
   // Multi-answer and ordered answer states
-  const [answerType, setAnswerType] = React.useState("single"); // "single", "multi", "ordered"
+  const [answerType, setAnswerType] = React.useState("single"); // "single", "multi", "ordered", "mask"
   const [multiAnswers, setMultiAnswers] = React.useState([]); // Array of correct answer indices
   const [clickedMultiAnswers, setClickedMultiAnswers] = React.useState([]); // Array of clicked correct answers
   const [orderedAnswers, setOrderedAnswers] = React.useState([]); // Array of answer indices in order
   const [orderedClickSequence, setOrderedClickSequence] = React.useState([]); // Sequence of clicks
+  
+  // Mask answer states
+  const [maskImage, setMaskImage] = React.useState(null); // HTMLImageElement for the mask
+  const [maskCanvas, setMaskCanvas] = React.useState(null); // Canvas for pixel detection
 
   // Mic session-only
   const [stream, setStream] = React.useState(null);
@@ -131,51 +135,94 @@ function Test({ allQuestions }) {
     setMicrophoneSkipped(true);
   };
 
-  const handleClick = function(img) {
-  if (questionType === "C") {
-    // Get the image index (1-based)
-    const imgIndex = images.indexOf(img) + 1;
-    
-    if (answerType === "single") {
-      // Original single-answer behavior
-      const correct = img === target;
-      if (correct) setClickedCorrect(true);
-      setShowContinue(true);
-    } else if (answerType === "multi") {
-      // Multi-answer: check if this is a correct answer
-      if (multiAnswers.includes(imgIndex)) {
-        // Add to clicked answers if not already clicked
-        if (!clickedMultiAnswers.includes(imgIndex)) {
-          const newClicked = [...clickedMultiAnswers, imgIndex];
-          setClickedMultiAnswers(newClicked);
-          
-          // Check if all correct answers have been clicked
-          if (newClicked.length === multiAnswers.length) {
-            setClickedCorrect(true);
-            setShowContinue(true);
+  const handleClick = function(img, event) {
+    if (questionType === "C") {
+      // Get the image index (1-based)
+      const imgIndex = images.indexOf(img) + 1;
+      
+      if (answerType === "single") {
+        // Original single-answer behavior
+        const correct = img === target;
+        if (correct) setClickedCorrect(true);
+        setShowContinue(true);
+      } else if (answerType === "multi") {
+        // Multi-answer: check if this is a correct answer
+        // CHANGE B: Always show continue when any image is clicked
+        setShowContinue(true);
+        
+        if (multiAnswers.includes(imgIndex)) {
+          // Add to clicked answers if not already clicked
+          if (!clickedMultiAnswers.includes(imgIndex)) {
+            const newClicked = [...clickedMultiAnswers, imgIndex];
+            setClickedMultiAnswers(newClicked);
+            
+            // Check if all correct answers have been clicked
+            if (newClicked.length === multiAnswers.length) {
+              setClickedCorrect(true);
+            }
           }
         }
-      }
-      // If wrong answer, do nothing
-    } else if (answerType === "ordered") {
-      // Ordered answer: check if this matches the next expected answer
+      } else if (answerType === "ordered") {
+        // Ordered answer: check if this matches the next expected answer
 
-      if (orderedClickSequence.length > 0 && orderedClickSequence.at(-1) != imgIndex){
-      const newSequence = [orderedClickSequence.at(-1), imgIndex]
-      setOrderedClickSequence(newSequence)
-      setShowContinue(true);
-      if (newSequence[0] === 2 && newSequence[1] === 1) {
-        setClickedCorrect(true);
+        if (orderedClickSequence.length > 0 && orderedClickSequence.at(-1) != imgIndex){
+          const newSequence = [orderedClickSequence.at(-1), imgIndex]
+          setOrderedClickSequence(newSequence)
+          setShowContinue(true);
+          if (newSequence[0] === 2 && newSequence[1] === 1) {
+            setClickedCorrect(true);
+          }
+        }
+        else{
+          const newSequence = [imgIndex] 
+          setOrderedClickSequence(newSequence)
+        } 
+      } else if (answerType === "mask") {
+        // CHANGE A: Fixed mask detection
+        // Mask-based answer: check if click is on green pixel
+        if (maskCanvas) {
+          const isGreen = checkMaskClick(event);
+          if (isGreen) {
+            setClickedCorrect(true);
+          }
+        }
+        setShowContinue(true);
       }
-      
-      }
-      else{
-        const newSequence = [imgIndex] 
-        setOrderedClickSequence(newSequence)
-      } 
     }
+  };
+
+  function checkMaskClick(event) {
+    if (!maskCanvas) return false;
+    
+    const imgElement = event.target;
+    const rect = imgElement.getBoundingClientRect();
+    
+    // Get click position relative to image
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    // Scale to canvas coordinates
+    const scaleX = maskCanvas.width / rect.width;
+    const scaleY = maskCanvas.height / rect.height;
+    const canvasX = Math.floor(x * scaleX);
+    const canvasY = Math.floor(y * scaleY);
+    
+    // Ensure coordinates are within bounds
+    if (canvasX < 0 || canvasX >= maskCanvas.width || canvasY < 0 || canvasY >= maskCanvas.height) {
+      return false;
+    }
+    
+    // Get pixel data from canvas
+    const ctx = maskCanvas.getContext('2d');
+    const pixelData = ctx.getImageData(canvasX, canvasY, 1, 1).data;
+    
+    // Check if pixel is green (R < 50, G > 200, B < 50)
+    const isGreen = pixelData[0] < 50 && pixelData[1] > 200 && pixelData[2] < 50;
+    
+    console.log('Mask click at:', canvasX, canvasY, 'RGB:', pixelData[0], pixelData[1], pixelData[2], 'isGreen:', isGreen);
+    
+    return isGreen;
   }
-};
 
   const handleContinue = function(result) {
     const progress = updateProgress(result);
@@ -294,6 +341,8 @@ function Test({ allQuestions }) {
     setClickedCorrect(false);
     setClickedMultiAnswers([]);
     setOrderedClickSequence([]);
+    setMaskImage(null);
+    setMaskCanvas(null);
 
     const imgCount = parseInt(q.image_count, 10) || 1;
     const imgs = [];
@@ -304,7 +353,32 @@ function Test({ allQuestions }) {
     // Parse answer field to determine answer type
     const answerStr = (q.answer || "").trim();
     
-    if (answerStr.includes(",")) {
+    if (answerStr === "A") {
+      // Mask answer type: load A.webp as mask
+      setAnswerType("mask");
+      const maskUrl = "resources/test_assets/" + q.query_number + "/A.webp";
+      
+      // Load mask image and draw to canvas for pixel detection
+      const mask = new Image();
+      mask.crossOrigin = "anonymous";
+      mask.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = mask.width;
+        canvas.height = mask.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(mask, 0, 0);
+        setMaskCanvas(canvas);
+        setMaskImage(mask);
+      };
+      mask.onerror = function() {
+        console.error('Failed to load mask image:', maskUrl);
+      };
+      mask.src = maskUrl;
+      
+      setTarget("");
+      setMultiAnswers([]);
+      setOrderedAnswers([]);
+    } else if (answerStr.includes(",")) {
       // Multi-answer type: "1,2,3,4,10"
       setAnswerType("multi");
       const answers = answerStr.split(",").map(function(a) {
@@ -361,22 +435,28 @@ function Test({ allQuestions }) {
   }
 
   function handleLevelCompletion() {
-    const successes = trackProgress[0];
-    const failures = trackProgress[1];
-    switch (phase) {
+    // CHANGE C: Read current values directly to avoid stale state
+    const currentProgress = trackProgress;
+    const currentPhase = phase;
+    const level = currentLevel;
+    
+    const successes = currentProgress[0];
+    const failures = currentProgress[1];
+    
+    switch (currentPhase) {
       case "initial":
-        transitionToNextPhase("standard", currentLevel + 1);
+        transitionToNextPhase("standard", level + 1);
         break;
       case "reevaluation":
-        transitionToNextPhase("easy", currentLevel + 1);
+        transitionToNextPhase("easy", level + 1);
         break;
       case "standard":
         if (failures >= 3) {
-          transitionToNextPhase("easy", Math.max(0, currentLevel - 1));
+          transitionToNextPhase("easy", Math.max(0, level - 1));
         } else {
           // SPECIAL CONDITION 3: Age group 4, can't show [age group] + 1 = 5
           // Don't show advanced choice, just complete the session
-          if (currentLevel >= 4) {
+          if (level >= 4) {
             completeSession("Well done!");
           } else {
             setShowAdvancedChoice(true);
@@ -553,14 +633,14 @@ function Test({ allQuestions }) {
       React.createElement("p", null, "This test includes recording questions. Please allow microphone access."),
       React.createElement(
         "button",
-        { onClick: getMicrophonePermission },
+        { className : "allowMic",
+          onClick: getMicrophonePermission },
         "Allow Microphone"
       ),
       React.createElement(
         "button",
-        { 
+        { className : "skipMic",
           onClick: skipMicrophone,
-          style: { marginLeft: "10px", background: "#666" }
         },
         "Skip (No Recording)"
       )
@@ -661,7 +741,7 @@ function Test({ allQuestions }) {
             const imgIndex = i + 1;
             const isCorrectMulti = answerType === "multi" && clickedMultiAnswers.includes(imgIndex);
             const isTargetSingle = answerType === "single" && img === target && clickedCorrect;
-            const showFireworks = (isTargetSingle || (answerType === "multi" && clickedCorrect)) || 
+            const showFireworks = (isTargetSingle || (answerType === "multi" && clickedCorrect) || (answerType === "mask" && clickedCorrect)) || 
                                   (answerType === "ordered" && clickedCorrect && orderedAnswers[orderedAnswers.length - 1] === imgIndex);
             
             return React.createElement(
@@ -686,7 +766,7 @@ function Test({ allQuestions }) {
                 src: img,
                 alt: "option " + (i + 1),
                 className: "image",
-                onClick: function() { handleClick(img); },
+                onClick: function(e) { handleClick(img, e); },
               })
             );
           })
@@ -718,7 +798,7 @@ function Test({ allQuestions }) {
               )
             : null,
           microphoneSkipped
-            ? React.createElement("p", { style: { fontStyle: "italic", color: "#666" } }, "Recording skipped - please evaluate the response")
+            ? React.createElement("p", { class : "skippedText" }, "Recording skipped - please evaluate the response")
             : null,
           React.createElement(
             "div",

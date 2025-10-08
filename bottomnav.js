@@ -18,11 +18,11 @@ function BottomNav({ page, setPage }) {
       </button>
 
       <button
-        className={page === "AudioRecorder" ? "active" : ""}
-        onClick={() => setPage("AudioRecorder")}
+        className={page === "help" ? "active" : ""}
+        onClick={() => setPage("help")}
       >
-        <span className="icon">🎤</span>
-        <span className="label">בדיקת מיקרופון</span>
+        <span className="icon">💡</span>
+        <span className="label">עזרה</span>
       </button>
     </div>
   );
