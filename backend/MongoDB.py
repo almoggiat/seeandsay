@@ -99,7 +99,7 @@ class SeeSayMongoStorage:
             logger.error(f"❌ Error adding user {user_id} ({user_name}): {e}")
             return False
 
-    def add_exam_to_user(self, user_id, time_took, errors, audio_file, final_evaluation):
+    def add_exam_to_user(self, user_id, time_took,correct, partly, errors, q_timestamps, audio_file, final_evaluation):
         """
         Adds a new exam record to the 'exams' array of a specific user.
         Time_took --> how long it took to finish
@@ -108,7 +108,10 @@ class SeeSayMongoStorage:
             new_exam = {
                 'exam_date': datetime.now(),
                 'timeTook': time_took,
+                'correct': correct,
+                'partly': partly,
                 'errors': errors,
+                'q_timestamps': q_timestamps, #tuple --> v=[("q1_start","q2_end"),()]
                 'audioFile': audio_file,
                 'finalEvaluation': final_evaluation
             }
