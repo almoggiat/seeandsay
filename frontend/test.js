@@ -121,8 +121,9 @@ function Test({ allQuestions }) {
 
     // 👉 Send data to backend (Server that will save to MongoDB)
     // Change http://localhost:5000/api/saveUser to the url of backend server
+    // "https://seeandsay-mongodb-backend.onrender.com/"
   try {
-    await fetch("http://localhost:5000/api/saveUser", {
+    await fetch("https://seeandsay-mongodb-backend.onrender.com/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ageYears: y, ageMonths: m }),
