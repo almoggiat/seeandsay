@@ -4,22 +4,29 @@ import mongoose from "mongoose";
 import cors from "cors";
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
 app.use(cors());
 app.use(express.json());
 
-const mongoose = require("mongoose");
 const url = process.env.MONGODB_URL || "mongodb+srv://tomseesay_user:1qaz2wsx3edc4rfv@seesaydb.w8yu8n0.mongodb.net/?retryWrites=true&w=majority&appName=SeeSayDB";
 
 
 // ✅ Connect to MongoDB
 mongoose.connect(url, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 5000,
   ssl: true,
 })
 .then(() => console.log("✅ MongoDB connected"))
 .catch(err => console.error("❌ MongoDB connection error:", err));
+
+
+
+app.get("/", (req, res) => {
+  res.json({ message: "Hello from Render backend" });
+});
+
+
 
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
@@ -45,6 +52,5 @@ app.post("/api/saveUser", async (req, res) => {
 
 
 // Start server
-const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
