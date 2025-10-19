@@ -16,15 +16,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-mongodb_uri = os.environ.get("MONGODB_URI")
+mongodb_url = os.environ.get("MONGODB_URL")
 database_name = os.environ.get("DATABASE_NAME")
 
 
 class SeeSayMongoStorage:
     """Shared MongoDB storage for user data"""
 
-    def __init__(self, mongodb_uri=None, database_name=None):
-        self.mongodb_uri = mongodb_uri or os.environ.get("MONGODB_URI")
+    def __init__(self, mongodb_url=None, database_name=None):
+        self.mongodb_url = mongodb_url or os.environ.get("MONGODB_URL")
         self.database_name = database_name or os.environ.get("DATABASE_NAME")
         self.client = None ## MongoDB whole Information
         self.db = None  ## MongoDB specific Database
@@ -35,12 +35,12 @@ class SeeSayMongoStorage:
     def connect(self):
         """Connect to MongoDB"""
         try:
-            if not self.mongodb_uri:
+            if not self.mongodb_url:
                 raise ValueError("MongoDB URI not provided")
 
             # Use certifi for SSL certificate verification
             self.client = MongoClient(
-                self.mongodb_uri,
+                self.mongodb_url,
                 tlsCAFile=certifi.where(),
                 serverSelectionTimeoutMS=10000,
                 maxPoolSize=50,
@@ -287,9 +287,9 @@ class SeeSayMongoStorage:
 
 
 # Convenience function to create storage instance
-def create_storage(mongodb_uri=None, database_name=None):
+def create_storage(mongodb_url=None, database_name=None):
     """Create a new storage instance"""
-    return SeeSayMongoStorage(mongodb_uri, database_name)
+    return SeeSayMongoStorage(mongodb_url, database_name)
 
 
 
