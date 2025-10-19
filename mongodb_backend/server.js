@@ -7,11 +7,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const mongoose = require("mongoose");
+const url = process.env.MONGODB_URL || "mongodb+srv://tomseesay_user:1qaz2wsx3edc4rfv@seesaydb.w8yu8n0.mongodb.net/?retryWrites=true&w=majority&appName=SeeSayDB";
+
+
 // ✅ Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URL, {
+mongoose.connect(url, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-});
+  serverSelectionTimeoutMS: 5000,
+  ssl: true,
+})
+.then(() => console.log("✅ MongoDB connected"))
+.catch(err => console.error("❌ MongoDB connection error:", err));
 
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
