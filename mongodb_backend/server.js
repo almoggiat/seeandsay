@@ -30,6 +30,7 @@ app.get("/", (req, res) => {
 
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
   ageYears: Number,
   ageMonths: Number,
   createdAt: { type: Date, default: Date.now },
@@ -40,8 +41,8 @@ const User = mongoose.model("User", userSchema, "users");
 // ✅ Define route
 app.post("/api/saveUser", async (req, res) => {
   try {
-    const { ageYears, ageMonths } = req.body;
-    const newUser = new User({ ageYears, ageMonths });
+    const {userId, ageYears, ageMonths } = req.body;
+    const newUser = new User({ userId, ageYears, ageMonths });
     await newUser.save();
     res.status(201).json({ success: true, user: newUser });
   } catch (error) {

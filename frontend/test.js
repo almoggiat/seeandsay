@@ -126,7 +126,7 @@ function Test({ allQuestions }) {
       fetch("https://seeandsay-mongodb-backend.onrender.com/api/saveUser", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ageYears: y, ageMonths: m }),
+      body: JSON.stringify({userId:"123321", ageYears: y, ageMonths: m }),
         });
     } catch (err) {
       console.error("Failed to save user:", err);
