@@ -30,10 +30,12 @@ app.get("/", (req, res) => {
 
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
-  id: "123321"
+  id: { type: String, unique: true, default: () => new mongoose.Types.ObjectId() }, // Provide a unique ID
   ageYears: Number,
   ageMonths: Number,
   createdAt: { type: Date, default: Date.now },
+}, {
+    _id: false, // Prevents Mongoose from creating its default _id
 });
 
 const User = mongoose.model("User", userSchema, "users");
