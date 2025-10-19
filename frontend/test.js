@@ -117,7 +117,21 @@ function Test({ allQuestions }) {
     }
     
     setAgeConfirmed(true);
+
+
+    // 👉 Send data to backend (Server that will save to MongoDB)
+    // Change http://localhost:5000/api/saveUser to the url of backend server
+  try {
+    await fetch("http://localhost:5000/api/saveUser", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ageYears: y, ageMonths: m }),
+    });
+  } catch (err) {
+    console.error("Failed to save user:", err);
   }
+}
+    /// Finish code for sending to backend
 
   const getMicrophonePermission = async function() {
     if ("MediaRecorder" in window) {
