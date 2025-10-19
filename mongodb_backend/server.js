@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-const url = process.env.MONGODB_URL || "mongodb+srv://tomseesay_user:1qaz2wsx3edc4rfv@seesaydb.w8yu8n0.mongodb.net/?retryWrites=true&w=majority&appName=SeeSayDB";
+const url = process.env.MONGODB_URL;
 
 
 // ✅ Connect to MongoDB
