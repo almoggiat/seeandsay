@@ -27,11 +27,9 @@ def Play_Audio(audio_file_path):
         print("Make sure ffmpeg is installed and accessible in your system's PATH.")
 
 
-def Question_TTS_Maker():
-    CSV_FILE_NAME = 'query_database.csv'
-    CVS_FILE_PATH = "/home/tom/PycharmProjects/seeandsay/frontend/resources/query_database.csv"
+def Question_TTS_Maker(path,TEXT_COLUMN_HEADER):
+    CVS_FILE_PATH = path
 
-    TEXT_COLUMN_HEADER = 'query_nikud'
 
     # Folder to save the resulting MP3 files
     OUTPUT_DIR = "/home/tom/PycharmProjects/seeandsay/frontend/questions_audio"
@@ -61,6 +59,7 @@ def Question_TTS_Maker():
                 save_path = os.path.join(OUTPUT_DIR, f'audio_{file_counter}.mp3')
 
                 try:
+
                     # 3. Create the gTTS object and save the audio
                     tts = gTTS(text=text_to_speak, lang="iw")
                     tts.save(save_path)
@@ -88,7 +87,10 @@ if __name__ == "__main__":
     # audio_path = "google_audio1.mp3"
     # Generate_TTS(text,audio_path)
     # Play_Audio(audio_path)
-    Question_TTS_Maker()
+    TEXT_COLUMN_HEADER = 'query_nikud'
+
+    Question_TTS_Maker( path = "/home/tom/PycharmProjects/seeandsay/frontend/resources/query_database_2.csv",
+                        TEXT_COLUMN_HEADER=TEXT_COLUMN_HEADER)
 
 
 
