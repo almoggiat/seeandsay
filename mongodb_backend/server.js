@@ -41,15 +41,19 @@ const User = mongoose.model("User", userSchema, "users");
 // ✅ Define route
 app.post("/api/saveUser", async (req, res) => {
   try {
-    const {userId, ageYears, ageMonths } = req.body;
+    console.log("Request body:", req.body);
+    const { userId, ageYears, ageMonths } = req.body;
     const newUser = new User({ userId, ageYears, ageMonths });
-    await newUser.save();
-    res.status(201).json({ success: true, user: newUser });
+    const result = await newUser.save();
+
+    console.log("Saved successfully:", result);
+    res.status(201).json({ success: true, user: result });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "Failed to save" });
+    console.error("Save error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 
 // Start server
