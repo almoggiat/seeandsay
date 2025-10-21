@@ -31,6 +31,7 @@ app.get("/", (req, res) => {
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
   _id: { type: String, required: true },
+  userId: Number,
   ageYears: Number,
   ageMonths: Number,
   createdAt: { type: Date, default: Date.now },
