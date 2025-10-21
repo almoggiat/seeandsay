@@ -172,7 +172,7 @@ React.useEffect(() => {
       fetch("https://seeandsay-mongodb-backend.onrender.com/api/saveUser", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({userId: id, ageYears: y, ageMonths: m }),
+      body: JSON.stringify({_id: id, ageYears: y, ageMonths: m }),
         });
     } catch (err) {
       console.error("Failed to save user:", err);
