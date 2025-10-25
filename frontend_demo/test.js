@@ -73,6 +73,10 @@ function Test({ allQuestions }) {
     };
   }, []);
 
+  //question audio states
+const [questionAudio, setQuestionAudio] = React.useState(null);
+const [isAudioPlaying, setIsAudioPlaying] = React.useState(false);
+
 
 
 
@@ -163,22 +167,8 @@ React.useEffect(() => {
     }
     // Simply confirm age and start with all questions
     setAgeConfirmed(true);
-
-
-    // 👉 Send data to backend (Server that will save to MongoDB)
-    // Change http://localhost:5000/api/saveUser to the url of backend server
-    // "https://seeandsay-mongodb-backend.onrender.com/"
-    try {
-      fetch("https://seeandsay-mongodb-backend.onrender.com/api/saveUser", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({userId: id, ageYears: y, ageMonths: m }),
-        });
-    } catch (err) {
-      console.error("Failed to save user:", err);
+    sendToBackend(id, y, m, "", "")
   }
-}
-    /// Finish code for sending to backend
 
   const getMicrophonePermission = async function() {
     if ("MediaRecorder" in window) {
@@ -190,11 +180,51 @@ React.useEffect(() => {
         alert(err.message);
       }
     } else alert("The MediaRecorder API is not supported in your browser.");
+    playQuestionOne()
   };
 
   const skipMicrophone = function() {
     setMicrophoneSkipped(true);
+    playQuestionOne()
   };
+
+
+const playQuestionAudio = function() {
+  if (questionAudio) {
+    questionAudio.currentTime = 0;
+    questionAudio.play();
+    setIsAudioPlaying(true);
+  }
+};
+
+const replayQuestionAudio = function() {
+  playQuestionAudio();
+};
+
+
+
+const playQuestionOne = function()  {
+   // Load and play question audio
+    const audioUrl = "resources/questions_audio/audio_1.mp3";
+    const audio = new Audio(audioUrl);
+    audio.onended = function() {
+      setIsAudioPlaying(false);
+    };
+    audio.onerror = function() {
+      console.warn('Audio file not found for question:', q.query_number);
+    };
+    setQuestionAudio(audio);
+    // Play audio automatically when question loads
+    setTimeout(function() {
+      audio.play().catch(function(err) {
+        console.warn('Audio autoplay failed:', err);
+      });
+      setIsAudioPlaying(true);
+    }, 100);}
+    
+  
+
+
 
   const handleClick = function(img, event) {
     if (questionType === "C") {
@@ -525,6 +555,26 @@ React.useEffect(() => {
 
     setImages(imgs);
     setQuestionType(q.query_type === "הבנה" ? "C" : "E");
+ if (permission || microphoneSkipped){ //check if the microphone permission stage is over
+    //play the audio
+
+    // Load and play question audio
+    const audioUrl = "resources/questions_audio/audio_" + q.query_number + ".mp3";
+    const audio = new Audio(audioUrl);
+    audio.onended = function() {
+      setIsAudioPlaying(false);
+    };
+    audio.onerror = function() {
+      console.warn('Audio file not found for question:', q.query_number);
+    };
+    setQuestionAudio(audio);
+    // Play audio automatically when question loads
+    setTimeout(function() {
+      audio.play().catch(function(err) {
+        console.warn('Audio autoplay failed:', err);
+      });
+      setIsAudioPlaying(true);
+    }, 100);}
     
     // Set two-row layout states
     setIsTwoRow(isTwoRow);
@@ -555,10 +605,13 @@ React.useEffect(() => {
     completeSession();
   }
 
-  function completeSession() {
-    setSessionCompleted(true);
-    setImages([]);
-  }
+function completeSession() {
+  setSessionCompleted(true);
+  setImages([]);
+
+  // Send current user/session data to backend
+  sendToBackend(idDigits, ageYears, ageMonths, "", "");
+}
 
 
   function checkCurrentQuestionImages() {
@@ -682,6 +735,7 @@ React.useEffect(() => {
       )
     );
   }
+  
 
   if (!ageConfirmed && !ageInvalid) {
     return React.createElement(
@@ -816,6 +870,17 @@ React.useEffect(() => {
         
       : null,
     React.createElement(ProgressBar),
+    questionAudio
+    ? React.createElement(
+        "button",
+        {
+          className: "replay-audio-btn",
+          onClick: replayQuestionAudio,
+          disabled: isAudioPlaying
+        },
+        isAudioPlaying ? "🔊 Playing..." : "🔊 Replay Audio"
+      )
+    : null,
     React.createElement(
       "div",
       { className: "test-info" },
@@ -875,7 +940,7 @@ React.useEffect(() => {
                           border: isCorrectMulti ? "4px solid #00ff00" : "none",
                           borderRadius: isCorrectMulti ? "8px" : "0",
                           boxShadow: isCorrectMulti ? "0 0 15px rgba(0,255,0,0.6)" : "none",
-                          opacity: isNonClickable ? 0.5 : 1,
+                          opacity: isNonClickable ? 0.5 : 1,  
                           cursor: isNonClickable ? "not-allowed" : "pointer"
                         } 
                       },
