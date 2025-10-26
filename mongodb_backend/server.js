@@ -9,11 +9,11 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-const url = process.env.MONGODB_URL;
+const mongo_url = process.env.MONGODB_URL;
 
 
 // ✅ Connect to MongoDB
-mongoose.connect(url, {
+mongoose.connect(mongo_url, {
   serverSelectionTimeoutMS: 5000,
   ssl: true,
 })
@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
   ageMonths: Number,
   tests: [
     {
-      date: { type: Date, default: Date.now },
+      dateFinished: { type: Date, default: Date.now },
       audioFile: String,
       txtFile: String,
     },
