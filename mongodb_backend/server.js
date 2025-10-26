@@ -28,6 +28,10 @@ app.get("/", (req, res) => {
 
 
 
+
+
+
+
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true },
@@ -76,7 +80,7 @@ app.post("/api/addTestToUser", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    console.log("User Updated successfully:", result);
+    console.log("User Updated successfully:", updatedUser);
     res.status(200).json({ success: true, user: updatedUser });
   } catch (error) {
     console.error("❌ User Update error:", error);
