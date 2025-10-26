@@ -610,7 +610,7 @@ function completeSession() {
   setImages([]);
 
   // Send current user/session data to backend
-  updateUserTests(idDigits, ageYears, ageMonths, "", "");
+  updateUserTests(idDigits, "This Is Audio", "This Is Text");
 }
 
 
