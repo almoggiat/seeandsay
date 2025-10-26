@@ -167,7 +167,7 @@ React.useEffect(() => {
     }
     // Simply confirm age and start with all questions
     setAgeConfirmed(true);
-    sendToBackend(id, y, m, "", "")
+    createUser(id, y, m, "", "")
   }
 
   const getMicrophonePermission = async function() {
@@ -610,7 +610,7 @@ function completeSession() {
   setImages([]);
 
   // Send current user/session data to backend
-  sendToBackend(idDigits, ageYears, ageMonths, "", "");
+  updateUserFiles(idDigits, ageYears, ageMonths, "", "");
 }
 
 
