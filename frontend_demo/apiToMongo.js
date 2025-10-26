@@ -1,3 +1,5 @@
+
+// create user
 async function createUser(id, y, m, audio, text) {
   const url = "https://seeandsay-mongodb-backend.onrender.com/api/createUser";
 
@@ -25,9 +27,9 @@ async function createUser(id, y, m, audio, text) {
   }
 }
 
-
-async function updateUserFiles(userId, audioBase64, textContent) {
-  const url = "https://seeandsay-mongodb-backend.onrender.com/api/updateUserFiles";
+// update user info
+async function updateUserTests(userId, audioBase64, textContent) {
+  const url = "https://seeandsay-mongodb-backend.onrender.com/api/addTestToUser";
 
   try {
     const response = await fetch(url, {

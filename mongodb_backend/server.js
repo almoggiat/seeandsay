@@ -31,10 +31,16 @@ app.get("/", (req, res) => {
 // ✅ Define schema
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true },
+  userName: String,
   ageYears: Number,
   ageMonths: Number,
-  audioFile: Audio,
-  txtFile: Text
+  tests: [
+    {
+      date: { type: Date, default: Date.now },
+      audioFile: String,
+      txtFile: String,
+    },
+  ],
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -57,12 +63,12 @@ app.post("/api/createUser", async (req, res) => {
 });
 
 // ✅ Route 2 - Update user files, end of test.
-app.post("/api/updateUserFiles", async (req, res) => {
+app.post("/api/addTestToUser", async (req, res) => {
   try {
     const { userId, audioFile, txtFile } = req.body;
     const updatedUser = await User.findOneAndUpdate(
       { userId },
-      { audioFile, txtFile },
+      { $push: { tests: { audioFile, txtFile } } }, // add a new test
       { new: true }
     );
 
