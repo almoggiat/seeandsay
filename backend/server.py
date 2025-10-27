@@ -58,7 +58,7 @@ class AddTestRequest(BaseModel):
     partly: Optional[int] = None
     errors: Optional[int] = None
     audioFile: str
-    txtFile: str
+    finalEvaluation: str
 
 
 
