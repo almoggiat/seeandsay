@@ -28,14 +28,14 @@ async function createUser(id, y, m, audio, text) {
 }
 
 // update user info
-async function updateUserTests(userId, audioBase64, textContent) {
+async function updateUserTests(userId, correct, partly, wrong, audioBase64, textContent) {
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, audioFile: audioBase64, txtFile: textContent }),
+      body: JSON.stringify({ userId, correct:correct, partly:partly, wrong:wrong, audioFile: audioBase64, finalEvaluation: textContent }),
     });
 
     const result = await response.json();

@@ -56,7 +56,7 @@ class AddTestRequest(BaseModel):
     userId: str
     correct: Optional[int] = None
     partly: Optional[int] = None
-    errors: Optional[int] = None
+    wrong: Optional[int] = None
     audioFile: str
     finalEvaluation: str
 
@@ -88,7 +88,7 @@ def add_test(test: AddTestRequest):
         user_id=test.userId,
         correct=test.correct,
         partly=test.partly,
-        errors=test.errors,
+        wrong=test.wrong,
         audio_file=test.audioFile,
         final_evaluation=test.finalEvaluation
     )

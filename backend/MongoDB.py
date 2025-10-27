@@ -103,7 +103,7 @@ class SeeSayMongoStorage:
 
 
 
-    def add_test_to_user(self, user_id,correct, partly, errors, audio_file, final_evaluation):
+    def add_test_to_user(self, user_id,correct, partly, wrong, audio_file, final_evaluation):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
@@ -113,7 +113,7 @@ class SeeSayMongoStorage:
                 'dateFinished': datetime.now(),
                 'correct': correct,
                 'partly': partly,
-                'errors': errors,
+                'wrong': wrong,
                 'audioFile': audio_file,
                 'txtFile': final_evaluation
             }
