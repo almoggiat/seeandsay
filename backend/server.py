@@ -73,8 +73,8 @@ def create_user(user: CreateUserRequest):
     success = storage.add_user(
         user_id=user.userId,
         user_name=user.userName,
-        ageYears=user.ageYears,
-        ageMonths = user.ageMonths
+        age_years=user.ageYears,
+        age_months = user.ageMonths
     )
 
     if not success:
