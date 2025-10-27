@@ -66,17 +66,19 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
-    # User management
-    def add_user(self, user_id, user_name, age,exams=[]):
+
+
+    def add_user(self, user_id, user_name, age_years, age_months):
         """Add new user to MongoDB"""
         try:
             user_data = {
-                'id': user_id,
-                'user_name': user_name,
-                'date_join': datetime.now(),
+                'userId': user_id,
+                'userName': user_name,
+                'createdAt': datetime.now(),
                 'last_update': datetime.now(),
-                'age': age,
-                'exams': exams,
+                'ageYears': age_years,
+                'ageMonths': age_months,
+                'tests': [],
                 'active': True,
             }
 
@@ -99,43 +101,43 @@ class SeeSayMongoStorage:
             logger.error(f"❌ Error adding user {user_id} ({user_name}): {e}")
             return False
 
-    def add_exam_to_user(self, user_id, time_took,correct, partly, errors, q_timestamps, audio_file, final_evaluation):
+
+
+    def add_test_to_user(self, user_id,correct, partly, errors, audio_file, final_evaluation):
         """
-        Adds a new exam record to the 'exams' array of a specific user.
+        Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
         """
         try:
-            new_exam = {
-                'exam_date': datetime.now(),
-                'timeTook': time_took,
+            new_test = {
+                'dateFinished': datetime.now(),
                 'correct': correct,
                 'partly': partly,
                 'errors': errors,
-                'q_timestamps': q_timestamps, #tuple --> v=[("q1_start","q2_end"),()]
                 'audioFile': audio_file,
-                'finalEvaluation': final_evaluation
+                'txtFile': final_evaluation
             }
 
             result = self.users_collection.update_one(
                 {'id': user_id},
-                {'$push': {'exams': new_exam}}
+                {'$push': {'tests': new_test}}
             )
 
             if result.matched_count == 0:
                 # User was not found in the database
-                logger.warning(f"⚠️ User ID {user_id} not found. Cannot add exam.")
+                logger.warning(f"⚠️ User ID {user_id} not found. Cannot add test.")
                 return False
             elif result.modified_count == 1:
-                # Successfully pushed the new exam
-                logger.info(f"✅ Successfully added new exam for user ID: {user_id}")
+                # Successfully pushed the new test
+                logger.info(f"✅ Successfully added new test for user ID: {user_id}")
                 return True
             else:
                 # Matched but not modified (shouldn't happen with $push unless user document is locked)
-                logger.warning(f"⚠️ Exam addition for user {user_id} resulted in no change.")
+                logger.warning(f"⚠️ Test addition for user {user_id} resulted in no change.")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Error adding exam for user {user_id}: {e}")
+            logger.error(f"❌ Error adding test for user {user_id}: {e}")
             return False
 
     # get one user info using user_id.
@@ -167,19 +169,6 @@ class SeeSayMongoStorage:
             logger.error(f"❌ Error getting active users: {e}")
             return []
 
-    # Update last exam (and last_update + age)
-    # Need to actually CHANGE THIS FUNCTION
-    def update_last_snapshot(self, user_id):
-        """Update last snapshot timestamp"""
-        try:
-            result = self.users_collection.update_one(
-                {'user_id': user_id},
-                {'$set': {'last_update': datetime.now()}}
-            )
-            return result.modified_count > 0
-        except Exception as e:
-            logger.error(f"❌ Error updating last snapshot for {user_id}: {e}")
-            return False
 
 
     def deactivate_user(self, user_id):
@@ -200,28 +189,28 @@ class SeeSayMongoStorage:
             return False
 
 
-    def get_latest_exam(self, user_id):
+    def get_latest_test(self, user_id):
         try:
             # Use projection with $slice: -1 to return only the last item
-            # in the 'exams' array (the latest one).
-            projection = {'_id': 0, 'exams': {'$slice': -1}}
+            # in the 'tests' array (the latest one).
+            projection = {'_id': 0, 'tests': {'$slice': -1}}
 
             result = self.users_collection.find_one(
                 {'user_id': user_id},
                 projection
             )
 
-            if not result or 'exams' not in result or not result['exams']:
-                logger.warning(f"⚠️ User ID {user_id} found, but no exams recorded or user not found.")
+            if not result or 'tests' not in result or not result['tests']:
+                logger.warning(f"⚠️ User ID {user_id} found, but no tests recorded or user not found.")
                 return None
 
-            # The result['exams'] is a list containing exactly one element: the latest exam object.
-            latest_exam = result['exams'][0]
-            logger.info(f"✅ Retrieved latest exam for user ID: {user_id}")
+            # The result['tests'] is a list containing exactly one element: the latest test object.
+            latest_exam = result['tests'][0]
+            logger.info(f"✅ Retrieved latest test for user ID: {user_id}")
             return latest_exam
 
         except Exception as e:
-            logger.error(f"❌ Error getting latest exam for user {user_id}: {e}")
+            logger.error(f"❌ Error getting latest test for user {user_id}: {e}")
             return None
 
 
@@ -301,6 +290,6 @@ if __name__ == '__main__':
         logger.error(f"❌ Failed to initialize MongoDB storage: {e}")
 
 
-    storage_manager.add_user(user_id= "123123",user_name= "TomTESTTTT",age= 1)
-    storage_manager.add_exam_to_user(user_id= "123123",time_took=2,errors=10000,audio_file=None,final_evaluation="Great!")
-    # fdgss
+    # storage_manager.add_user(user_id= "123123",user_name= "TomTESTTTT",age= 1)
+    # storage_manager.add_test_to_user(user_id= "123123",time_took=2,errors=10000,audio_file=None,final_evaluation="Great!")
+    # # fdgss
