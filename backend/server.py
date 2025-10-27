@@ -13,6 +13,12 @@ from dotenv import load_dotenv
 # ✅ Import your existing storage manager
 from MongoDB import SeeSayMongoStorage
 
+
+from fastapi.middleware.cors import CORSMiddleware
+
+
+
+
 # ------------------------------------------------------
 # Setup
 # ------------------------------------------------------
@@ -28,6 +34,16 @@ storage = SeeSayMongoStorage(mongodb_url, database_name)
 
 # FastAPI setup
 app = FastAPI(title="See&Say Backend")
+
+# Allow all origins (for testing; restrict in production)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],       # or ["https://yourfrontend.com"]
+    allow_credentials=True,
+    allow_methods=["*"],       # GET, POST, OPTIONS, etc.
+    allow_headers=["*"],
+)
+
 
 # Request Models
 class CreateUserRequest(BaseModel):
