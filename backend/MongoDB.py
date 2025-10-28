@@ -54,7 +54,7 @@ class SeeSayMongoStorage:
             self.users_collection = self.db.users
 
             # Create indexes for better performance
-            self.users_collection.create_index("id", unique=True)
+            self.users_collection.create_index("userId", unique=True)
 
 
             logger.info(f"✅ Connected to MongoDB: {self.database_name}")
@@ -66,34 +66,24 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
-
-
-    def add_user(self, user_id, user_name, age_years, age_months):
-        """Add new user to MongoDB"""
+    def add_user(self, user_id, user_name):
+        """Add a new user to MongoDB if userId does not already exist"""
+        logger.info(f"Adding new user....: {user_id} ({user_name})")
         try:
             user_data = {
                 'userId': user_id,
                 'userName': user_name,
                 'createdAt': datetime.now(),
                 'last_update': datetime.now(),
-                'ageYears': age_years,
-                'ageMonths': age_months,
                 'tests': [],
                 'active': True,
             }
 
-            ## Insert new user ONLY if there is no same user_id, $set is the actual set command
             result = self.users_collection.insert_one(user_data)
-
-            if result.inserted_id:
-                logger.info(f"✅ Added new user: {user_id} ({user_name})")
-                return True
-            else:
-                # Should be unreachable if an index is set, but included for completeness
-                return False
+            logger.info(f"✅ Added new user: {user_id} ({user_name})")
+            return True
 
         except pymongo.errors.DuplicateKeyError:
-            # This exception is raised when insert_one attempts to add a duplicate 'id'
             logger.warning(f"⚠️ User ID {user_id} already exists. No action taken.")
             return False
 
@@ -102,8 +92,7 @@ class SeeSayMongoStorage:
             return False
 
 
-
-    def add_test_to_user(self, user_id,correct, partly, wrong, audio_file, final_evaluation):
+    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file, final_evaluation):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
@@ -111,6 +100,8 @@ class SeeSayMongoStorage:
         try:
             new_test = {
                 'dateFinished': datetime.now(),
+                'ageYears': age_years,
+                'ageMonths': age_months,
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,
@@ -119,7 +110,7 @@ class SeeSayMongoStorage:
             }
 
             result = self.users_collection.update_one(
-                {'id': user_id},
+                {'userId': user_id},
                 {'$push': {'tests': new_test}}
             )
 
