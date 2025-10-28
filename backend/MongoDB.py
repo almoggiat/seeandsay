@@ -66,7 +66,7 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
-    def add_user(self, user_id, user_name, age_years, age_months):
+    def add_user(self, user_id, user_name):
         """Add a new user to MongoDB if userId does not already exist"""
         logger.info(f"Adding new user....: {user_id} ({user_name})")
         try:
@@ -75,8 +75,6 @@ class SeeSayMongoStorage:
                 'userName': user_name,
                 'createdAt': datetime.now(),
                 'last_update': datetime.now(),
-                'ageYears': age_years,
-                'ageMonths': age_months,
                 'tests': [],
                 'active': True,
             }
@@ -94,7 +92,7 @@ class SeeSayMongoStorage:
             return False
 
 
-    def add_test_to_user(self, user_id,correct, partly, wrong, audio_file, final_evaluation):
+    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file, final_evaluation):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
@@ -102,6 +100,8 @@ class SeeSayMongoStorage:
         try:
             new_test = {
                 'dateFinished': datetime.now(),
+                'ageYears': age_years,
+                'ageMonths': age_months,
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,

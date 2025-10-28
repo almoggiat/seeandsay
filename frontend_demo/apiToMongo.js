@@ -1,6 +1,6 @@
 
 // create user
-async function createUser(id, y, m, audio, text) {
+async function createUser(userId, userName) {
   const url = "https://seeandsay-backend.onrender.com/api/createUser";
 
   try {
@@ -8,9 +8,8 @@ async function createUser(id, y, m, audio, text) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId: id,
-        ageYears: y,
-        ageMonths: m
+        userId,
+        userName
       }),
     });
 
@@ -28,7 +27,7 @@ async function createUser(id, y, m, audio, text) {
 }
 
 // update user info
-async function updateUserTests(userId, correct, partly, wrong, audioBase64, textContent) {
+async function updateUserTests(userId,ageYears,ageMonths, correct, partly, wrong, audioBase64, textContent) {
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
   try {
@@ -37,9 +36,11 @@ async function updateUserTests(userId, correct, partly, wrong, audioBase64, text
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
-        correct:correct,
-        partly:partly,
-        wrong:wrong,
+        ageYears,
+        ageMonths,
+        correct,
+        partly,
+        wrong,
         audioFile: audioBase64,
         finalEvaluation: textContent
         }),

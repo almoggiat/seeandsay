@@ -49,11 +49,12 @@ app.add_middleware(
 class CreateUserRequest(BaseModel):
     userId: str
     userName: Optional[str] = None
-    ageYears: int
-    ageMonths: int
+
 
 class AddTestRequest(BaseModel):
     userId: str
+    ageYears: int
+    ageMonths: int
     correct: Optional[int] = None
     partly: Optional[int] = None
     wrong: Optional[int] = None
@@ -73,9 +74,7 @@ def create_user(user: CreateUserRequest):
     logger.warning(f"Received user creation: {user.dict()}")
     success = storage.add_user(
         user_id=user.userId,
-        user_name=user.userName,
-        age_years=user.ageYears,
-        age_months = user.ageMonths
+        user_name=user.userName
     )
 
     if not success:
@@ -85,8 +84,11 @@ def create_user(user: CreateUserRequest):
 
 @app.post("/api/addTestToUser")
 def add_test(test: AddTestRequest):
+    logger.warning(f"Received user test: {test.dict()}")
     success = storage.add_test_to_user(
         user_id=test.userId,
+        age_years=test.ageYears,
+        age_months=test.ageMonths,
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,

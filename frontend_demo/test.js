@@ -167,7 +167,7 @@ React.useEffect(() => {
     }
     // Simply confirm age and start with all questions
     setAgeConfirmed(true);
-    createUser(id, y, m, "", "") //MongoDB
+    createUser(id, "SomeUserName") //MongoDB
   }
 
   const getMicrophonePermission = async function() {
@@ -611,6 +611,8 @@ function completeSession() {
 
   // Send current user/session data to backend
   updateUserTests(idDigits,
+                    y,
+                    m,
                     correctAnswers,
                     partialAnswers,
                     wrongAnswers,
