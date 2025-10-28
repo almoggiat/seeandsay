@@ -47,12 +47,12 @@ app.add_middleware(
 
 # Request Models
 class CreateUserRequest(BaseModel):
-    userId: str
+    userId: int
     userName: Optional[str] = None
 
 
 class AddTestRequest(BaseModel):
-    userId: str
+    userId: int
     ageYears: int
     ageMonths: int
     correct: Optional[int] = None

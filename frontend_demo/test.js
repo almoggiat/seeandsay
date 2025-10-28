@@ -611,8 +611,8 @@ function completeSession() {
 
   // Send current user/session data to backend
   updateUserTests(idDigits,
-                    y,
-                    m,
+                    ageYears,
+                    ageMonths,
                     correctAnswers,
                     partialAnswers,
                     wrongAnswers,
