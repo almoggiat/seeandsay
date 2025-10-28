@@ -68,6 +68,7 @@ class SeeSayMongoStorage:
 
     def add_user(self, user_id, user_name, age_years, age_months):
         """Add a new user to MongoDB if userId does not already exist"""
+        logger.info(f"Adding new user....: {user_id} ({user_name})")
         try:
             user_data = {
                 'userId': user_id,
