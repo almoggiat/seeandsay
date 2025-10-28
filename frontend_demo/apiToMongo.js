@@ -8,8 +8,8 @@ async function createUser(userId, userName) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId,
-        userName
+        userId: userId,
+        userName: userName
       }),
     });
 
@@ -35,12 +35,12 @@ async function updateUserTests(userId,ageYears,ageMonths, correct, partly, wrong
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId,
-        ageYears,
-        ageMonths,
-        correct,
-        partly,
-        wrong,
+        userId: userId,
+        ageYears: ageYears,
+        ageMonths: ageMonths,
+        correct: correct,
+        partly: partly,
+        wrong: wrong,
         audioFile: audioBase64,
         finalEvaluation: textContent
         }),
