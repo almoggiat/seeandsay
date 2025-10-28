@@ -9,12 +9,16 @@ import os
 from dotenv import load_dotenv
 import logging
 
+from prompts import *
+
+
 load_dotenv()
-OPENAI_API_KEY = os.environ.get("OPENAI_KEY")
-openAI_client = OpenAI(api_key= OPENAI_API_KEY)
-
-
+# OPENAI_API_KEY = os.environ.get("OPENAI_KEY")
+OPENAI_LINKCARRING_API_KEY = os.environ.get("OPENAI_LINKCARRING_KEY")
 SPEECHMATICS_API_KEY= os.environ.get("SPEECHMATICS_API_KEY")
+
+
+openAI_client = OpenAI(api_key= OPENAI_LINKCARRING_API_KEY)
 
 
 
@@ -70,7 +74,29 @@ def speechmatics_runner(audioFilePath):
     return transcript
 
 
+
+
+def openai_llm_runner(prompt, model, user_input):
+    # Format the prompt dynamically
+    full_prompt = prompt.format(user_input=user_input)
+
+    result = openAI_client.responses.create(
+        model=model,
+        input=full_prompt,
+    ).output_text
+
+    return result
+
+
 if __name__ == "__main__":
     print("This is main function of AI_Models_API")
-    audio_file_path = "frontend_demo/resources/questions_audio/audio_3.mp3"
-    speechmatics_runner(audio_file_path)
+
+    # audio_file_path = "frontend_demo/resources/questions_audio/audio_3.mp3"
+    # speechmatics_runner(audio_file_path)
+
+    test_prompt = """
+    You clever teaching assistant, give me 2 questions in {user_input}:
+    """
+
+    print(openai_llm_runner(test_prompt, "gpt-4o-mini", "Math"))
+
