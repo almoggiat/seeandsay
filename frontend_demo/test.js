@@ -20,9 +20,11 @@ function Test({ allQuestions }) {
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
   const [microphoneSkipped, setMicrophoneSkipped] = usePersistentState("microphoneSkipped", false);
-  const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
-  const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
-  const [recPaused, setPaused] = usePersistentState("recPaused", false);
+  
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
+  // const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
+  // const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
+  // const [recPaused, setPaused] = usePersistentState("recPaused", false);
 
   // Session-only states
   const [images, setImages] = React.useState([]);
@@ -53,14 +55,17 @@ function Test({ allQuestions }) {
   const [maskImage, setMaskImage] = React.useState(null); // HTMLImageElement for the mask
   const [maskCanvas, setMaskCanvas] = React.useState(null); // Canvas for pixel detection
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Mic session-only
-  const [stream, setStream] = React.useState(null);
-  const [mediaRecorder, setMediaRecorder] = React.useState(null);
-  const [recording, setRecording] = React.useState(false);
-
+  // const [stream, setStream] = React.useState(null);
+  // const [mediaRecorder, setMediaRecorder] = React.useState(null);
+  // const [recording, setRecording] = React.useState(false);
   // Countdown + recording control
-  const [countdown, setCountdown] = React.useState(0);
-  const [recordingStopped, setRecordingStopped] = React.useState(false);
+  // const [countdown, setCountdown] = React.useState(0);
+  // const [recordingStopped, setRecordingStopped] = React.useState(false);
+  
+  // Continuous recording state
+  const [sessionRecordingStarted, setSessionRecordingStarted] = React.useState(false);
 
   // Image loading state
   const [currentQuestionImagesLoaded, setCurrentQuestionImagesLoaded] = React.useState(false);
@@ -173,9 +178,13 @@ React.useEffect(() => {
   const getMicrophonePermission = async function() {
     if ("MediaRecorder" in window) {
       try {
-        const streamData = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setPermission(true);
-        setStream(streamData);
+        // Start continuous session recording
+        const started = await SessionRecorder.startContinuousRecording();
+        if (started) {
+          setPermission(true);
+          setSessionRecordingStarted(true);
+          console.log("✅ Continuous recording started");
+        }
       } catch (err) {
         alert(err.message);
       }
@@ -184,7 +193,9 @@ React.useEffect(() => {
   };
 
   const skipMicrophone = function() {
+    // Even if skipping recording, mark that user interacted with microphone prompt
     setMicrophoneSkipped(true);
+    setSessionRecordingStarted(false); // No recording started
     playQuestionOne()
   };
 
@@ -340,7 +351,9 @@ const playQuestionOne = function()  {
     }
   };
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Recording controls
+  /*
   const startRecording = function() {
     if (!stream) return;
 
@@ -417,6 +430,7 @@ const playQuestionOne = function()  {
       startRecording();
     }, 50);
   };
+  */
 
   // =============================================================================
   // HELPER FUNCTIONS
@@ -590,13 +604,7 @@ const playQuestionOne = function()  {
 
     // Start countdown for expression questions
     if (q.query_type !== "הבנה") {
-      // If microphone was skipped, show traffic lights immediately
-      if (microphoneSkipped) {
-        setShowContinue(true);
-      } else {
-        setCountdown(3);
-        setRecordingStopped(false);
-      }
+      setShowContinue(true);
     }
   }
 
@@ -609,8 +617,20 @@ function completeSession() {
   setSessionCompleted(true);
   setImages([]);
 
+  // Stop continuous session recording
+  if (sessionRecordingStarted && permission) {
+    SessionRecorder.stopContinuousRecording();
+    console.log("🛑 Stopped session recording");
+    
+    // Get final recording data
+    const recordingData = SessionRecorder.getFinalRecordingData();
+    console.log("📊 Recording data:", recordingData);
+  }
+
   // Send current user/session data to backend
-  updateUserTests(idDigits, correctAnswers, partialAnswers, wrongAnswers, "This Is Audio", "This Is Text"); //MongoDB
+  const recordingData = SessionRecorder.getFinalRecordingData();
+  const audioBase64 = recordingData ? recordingData.audio : "";
+  updateUserTests(idDigits, correctAnswers, partialAnswers, wrongAnswers, audioBase64, "Session completed"); //MongoDB
 }
 
 
@@ -672,7 +692,9 @@ function completeSession() {
     };
   }, [ageConfirmed, questions, currentIndex, sessionCompleted]);
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Countdown effect
+  /*
   React.useEffect(
     function countdownEffect() {
       // Skip countdown if microphone was skipped
@@ -704,6 +726,7 @@ function completeSession() {
     },
     [recordingStopped]
   );
+  */
 
   // =============================================================================
   // RENDER
@@ -802,6 +825,23 @@ function completeSession() {
 
   if (sessionCompleted) {
     const totalAnswered = correctAnswers + partialAnswers + wrongAnswers;
+    
+    // Download recording function
+    const downloadRecording = function() {
+      const recordingUrl = SessionRecorder.getFinalRecordingUrl();
+      if (recordingUrl) {
+        const a = document.createElement("a");
+        a.href = recordingUrl;
+        a.download = "session_recording_" + idDigits + "_" + Date.now() + ".webm";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        console.log("📥 Downloaded session recording");
+      } else {
+        alert("No recording available to download");
+      }
+    };
+    
     return React.createElement(
       "div",
       { className: "session-complete" },
@@ -813,7 +853,27 @@ function completeSession() {
       ),
       React.createElement("p", null, 
         "Total questions answered: " + totalAnswered + " / " + questions.length
-      )
+      ),
+      // Download button for recording
+      sessionRecordingStarted && SessionRecorder.getFinalRecordingUrl()
+        ? React.createElement(
+            "button",
+            {
+              style: {
+                marginTop: "20px",
+                padding: "10px 20px",
+                fontSize: "16px",
+                backgroundColor: "#42ABC7",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer"
+              },
+              onClick: downloadRecording
+            },
+            "📥 Download Recording"
+          )
+        : null
     );
   }
 
@@ -1063,35 +1123,36 @@ function completeSession() {
       : null,
 
     questionType === "E"
+      
       ? React.createElement(
           "div",
           { className: "expression-container" },
-          !microphoneSkipped && countdown > 0
-            ? React.createElement("h3", null, "Recording starts in " + countdown + "...")
-            : null,
-          !microphoneSkipped && recording
-            ? React.createElement(
-                "div",
-                { className: "rec-controls" },
-                !recPaused
-                  ? React.createElement("button", { className: "rec-btn pause", onClick: pauseRecording }, "Pause")
-                  : React.createElement("button", { className: "rec-btn resume", onClick: pauseRecording }, "Resume"),
-                React.createElement("button", { className: "rec-btn stop", onClick: stopRecording }, "Stop")
-              )
-            : null,
-          !microphoneSkipped && recordingStopped
-            ? React.createElement(
-                "div",
-                { className: "audio-replay" },
-                React.createElement("audio", { src: audioUrl, controls: true }),
-                React.createElement("div", { className: "rec-controls" },
-                  React.createElement("button", { className: "rec-btn redo", onClick: redoRecording }, "Redo recording")
-                )
-              )
-            : null,
-          microphoneSkipped
-            ? React.createElement("p", { className : "skippedText" }, "Recording skipped - please evaluate the response")
-            : null,
+          // !microphoneSkipped && countdown > 0
+          //   ? React.createElement("h3", null, "Recording starts in " + countdown + "...")
+          //   : null,
+          // !microphoneSkipped && recording
+          //   ? React.createElement(
+          //       "div",
+          //       { className: "rec-controls" },
+          //       !recPaused
+          //         ? React.createElement("button", { className: "rec-btn pause", onClick: pauseRecording }, "Pause")
+          //         : React.createElement("button", { className: "rec-btn resume", onClick: pauseRecording }, "Resume"),
+          //       React.createElement("button", { className: "rec-btn stop", onClick: stopRecording }, "Stop")
+          //     )
+          //   : null,
+          // !microphoneSkipped && recordingStopped
+          //   ? React.createElement(
+          //       "div",
+          //       { className: "audio-replay" },
+          //       React.createElement("audio", { src: audioUrl, controls: true }),
+          //       React.createElement("div", { className: "rec-controls" },
+          //         React.createElement("button", { className: "rec-btn redo", onClick: redoRecording }, "Redo recording")
+          //       )
+          //     )
+          //   : null,
+          // microphoneSkipped
+          //   ? React.createElement("p", { className : "skippedText" }, "Recording skipped - please evaluate the response")
+          //   : null,
           React.createElement(
             "div",
             { className: "images-container" },
