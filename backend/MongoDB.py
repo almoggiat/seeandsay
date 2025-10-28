@@ -109,7 +109,7 @@ class SeeSayMongoStorage:
             }
 
             result = self.users_collection.update_one(
-                {'id': user_id},
+                {'userId': user_id},
                 {'$push': {'tests': new_test}}
             )
 
