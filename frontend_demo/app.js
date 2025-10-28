@@ -60,6 +60,12 @@ function App() {
     localStorage.removeItem("recPaused");
     localStorage.removeItem("devMode");
     localStorage.removeItem("idDigits");
+    
+    // Clean up continuous session recording
+    localStorage.removeItem("sessionRecordingActive");
+    localStorage.removeItem("sessionRecordingUrl");
+    localStorage.removeItem("sessionRecordingFinal");
+    localStorage.removeItem("sessionRecordingChunks");
 
     window.location.reload();
   }
