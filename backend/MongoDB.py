@@ -54,7 +54,7 @@ class SeeSayMongoStorage:
             self.users_collection = self.db.users
 
             # Create indexes for better performance
-            self.users_collection.create_index("id", unique=True)
+            self.users_collection.create_index("userId", unique=True)
 
 
             logger.info(f"✅ Connected to MongoDB: {self.database_name}")
@@ -66,10 +66,8 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
-
-
     def add_user(self, user_id, user_name, age_years, age_months):
-        """Add new user to MongoDB"""
+        """Add a new user to MongoDB if userId does not already exist"""
         try:
             user_data = {
                 'userId': user_id,
@@ -82,25 +80,17 @@ class SeeSayMongoStorage:
                 'active': True,
             }
 
-            ## Insert new user ONLY if there is no same user_id, $set is the actual set command
             result = self.users_collection.insert_one(user_data)
-
-            if result.inserted_id:
-                logger.info(f"✅ Added new user: {user_id} ({user_name})")
-                return True
-            else:
-                # Should be unreachable if an index is set, but included for completeness
-                return False
+            logger.info(f"✅ Added new user: {user_id} ({user_name})")
+            return True
 
         except pymongo.errors.DuplicateKeyError:
-            # This exception is raised when insert_one attempts to add a duplicate 'id'
             logger.warning(f"⚠️ User ID {user_id} already exists. No action taken.")
             return False
 
         except Exception as e:
             logger.error(f"❌ Error adding user {user_id} ({user_name}): {e}")
             return False
-
 
 
     def add_test_to_user(self, user_id,correct, partly, wrong, audio_file, final_evaluation):

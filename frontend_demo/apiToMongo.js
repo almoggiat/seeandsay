@@ -35,7 +35,14 @@ async function updateUserTests(userId, correct, partly, wrong, audioBase64, text
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, correct:correct, partly:partly, wrong:wrong, audioFile: audioBase64, finalEvaluation: textContent }),
+      body: JSON.stringify({
+        userId,
+        correct:correct,
+        partly:partly,
+        wrong:wrong,
+        audioFile: audioBase64,
+        finalEvaluation: textContent
+        }),
     });
 
     const result = await response.json();

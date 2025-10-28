@@ -610,7 +610,12 @@ function completeSession() {
   setImages([]);
 
   // Send current user/session data to backend
-  updateUserTests(idDigits, correctAnswers, partialAnswers, wrongAnswers, "This Is Audio", "This Is Text"); //MongoDB
+  updateUserTests(idDigits,
+                    correctAnswers,
+                    partialAnswers,
+                    wrongAnswers,
+                    "This Is Audio",
+                    "This Is Text"); //MongoDB
 }
 
 
