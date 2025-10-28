@@ -70,6 +70,7 @@ def home():
 
 @app.post("/api/createUser")
 def create_user(user: CreateUserRequest):
+    logger.warning(f"Received user creation: {user.dict()}")
     success = storage.add_user(
         user_id=user.userId,
         user_name=user.userName,
