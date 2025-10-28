@@ -1,7 +1,7 @@
 function Test({ allQuestions }) {
-  // =============================================================================
+  // ============================================================================
   // STATE DECLARATIONS
-  // =============================================================================
+  // ============================================================================
 
   const [questions, setQuestions] = React.useState([]);
 
@@ -628,11 +628,6 @@ function completeSession() {
   }
 
   // Send current user/session data to backend
-<<<<<<< HEAD
-  const recordingData = SessionRecorder.getFinalRecordingData();
-  const audioBase64 = recordingData ? recordingData.audio : "";
-  updateUserTests(idDigits, correctAnswers, partialAnswers, wrongAnswers, audioBase64, "Session completed"); //MongoDB
-=======
   updateUserTests(idDigits,
                     ageYears,
                     ageMonths,
@@ -641,7 +636,6 @@ function completeSession() {
                     wrongAnswers,
                     "This Is Audio",
                     "This Is Text"); //MongoDB
->>>>>>> 5ed9e99df6f87d00ee9d518de38c051d94f57c3b
 }
 
 
