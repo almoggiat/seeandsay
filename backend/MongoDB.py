@@ -84,7 +84,7 @@ class SeeSayMongoStorage:
         file_data = self.fs.get(ObjectId(file_id))
         with open(output_path, "wb") as f:
             f.write(file_data.read())
-        logger.info(f"🎧 Audio downloaded to {output_path}")
+        logger.info(f"🎧 Audio ({file_id}) downloaded to {output_path}")
         ## usage:
         # audio_id = user_doc['tests'][<testNum>]['audioFileId']
         # db._download_audio(audio_id, "recovered_audio.mp3")
