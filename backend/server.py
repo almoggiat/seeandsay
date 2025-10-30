@@ -100,9 +100,9 @@ def add_test(test: AddTestRequest):
     user = storage.get_user_config(test.userId)
     return {"success": True, "user": user}
 
-@app.get("/api/getUser/{user_id}")
-def get_user(user_id: str):
-    user = storage.get_user_config(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"success": True, "user": user}
+# @app.get("/api/getUser/{user_id}")
+# def get_user(user_id: str):
+#     user = storage.get_user_config(user_id)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     return {"success": True, "user": user}
