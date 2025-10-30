@@ -91,7 +91,7 @@ def openai_llm_runner(prompt, model, user_input):
 if __name__ == "__main__":
     print("This is main function of AI_Models_API")
 
-    audio_file_path = "frontend_demo/resources/questions_audio/audio_3.mp3"
+    audio_file_path = "backend/testRecording.m4a"
     speechmatics_runner(audio_file_path)
 
     # test_prompt = """

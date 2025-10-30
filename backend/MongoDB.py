@@ -3,6 +3,9 @@ MongoDB Storage Manager for See&Say Application
 """
 
 from pymongo.mongo_client import MongoClient
+import gridfs
+from bson import ObjectId
+
 from pymongo.server_api import ServerApi
 import pymongo.errors
 from pymongo.errors import ConnectionFailure, DuplicateKeyError
@@ -29,6 +32,7 @@ class SeeSayMongoStorage:
         self.client = None ## MongoDB whole Information
         self.db = None  ## MongoDB specific Database
         self.users_collection = None   ## =self.db.{collecntion_name}
+        self.fs = None ## GridFS for audio files
         self.connect()
 
     ## connect sets all the mongoDB info, creating the self variables.
@@ -52,6 +56,7 @@ class SeeSayMongoStorage:
 
             self.db = self.client[self.database_name]
             self.users_collection = self.db.users
+            self.fs = gridfs.GridFS(self.db, collection="audioFiles")
 
             # Create indexes for better performance
             self.users_collection.create_index("userId", unique=True)
@@ -65,6 +70,25 @@ class SeeSayMongoStorage:
         except Exception as e:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
+
+    def upload_audio(self, audio_file_path):
+        """Uploads audio file to GridFS and returns the file_id."""
+        if not os.path.exists(audio_file_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+
+        with open(audio_file_path, "rb") as f:
+            file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
+        logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
+        return file_id
+
+    def download_audio(self, file_id, output_path):
+        file_data = self.fs.get(ObjectId(file_id))
+        with open(output_path, "wb") as f:
+            f.write(file_data.read())
+        logger.info(f"🎧 Audio downloaded to {output_path}")
+        ## usage:
+        # audio_id = user_doc['tests'][<testNum>]['audioFileId']
+        # db._download_audio(audio_id, "recovered_audio.mp3")
 
     def add_user(self, user_id, user_name):
         """Add a new user to MongoDB if userId does not already exist"""
@@ -92,12 +116,16 @@ class SeeSayMongoStorage:
             return False
 
 
-    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file, final_evaluation):
+    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file_path, final_evaluation):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
         """
         try:
+            ## Upload audio
+            audio_file_id = self.upload_audio(audio_file_path)
+
+            ## Data storage - audio as reference
             new_test = {
                 'dateFinished': datetime.now(),
                 'ageYears': age_years,
@@ -105,10 +133,11 @@ class SeeSayMongoStorage:
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,
-                'audioFile': audio_file,
+                'audioFileId': audio_file_id,
                 'txtFile': final_evaluation
             }
 
+            ## Save
             result = self.users_collection.update_one(
                 {'userId': user_id},
                 {'$push': {'tests': new_test}}

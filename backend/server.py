@@ -3,7 +3,7 @@ FastAPI backend server for See&Say Application
 Uses external MongoDB manager from storage_manager.py
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional, List
 import logging
@@ -58,7 +58,7 @@ class AddTestRequest(BaseModel):
     correct: Optional[int] = None
     partly: Optional[int] = None
     wrong: Optional[int] = None
-    audioFile: str
+    audioFile: UploadFile
     finalEvaluation: str
 
 
@@ -92,7 +92,7 @@ def add_test(test: AddTestRequest):
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,
-        audio_file=test.audioFile,
+        audio_file_path=test.audioFile,
         final_evaluation=test.finalEvaluation
     )
     if not success:
