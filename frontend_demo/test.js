@@ -833,15 +833,18 @@ function completeSession() {
     
     // Download recording function
     const downloadRecording = function() {
-      const recordingUrl = SessionRecorder.getFinalRecordingUrl();
+      // Use synchronous version since we're in a synchronous context
+      const recordingUrl = SessionRecorder.getFinalRecordingUrlSync();
       if (recordingUrl) {
         const a = document.createElement("a");
         a.href = recordingUrl;
-        a.download = "session_recording_" + idDigits + "_" + Date.now() + ".webm";
+        // Get the file extension (.mp3)
+        const fileExt = SessionRecorder.getCurrentFileExtension();
+        a.download = "session_recording_" + idDigits + "_" + Date.now() + fileExt;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        console.log("📥 Downloaded session recording");
+        console.log("📥 Downloaded session recording as MP3");
       } else {
         alert("No recording available to download");
       }
@@ -860,7 +863,7 @@ function completeSession() {
         "Total questions answered: " + totalAnswered + " / " + questions.length
       ),
       // Download button for recording
-      sessionRecordingStarted && SessionRecorder.getFinalRecordingUrl()
+      sessionRecordingStarted && SessionRecorder.getFinalRecordingUrlSync()
         ? React.createElement(
             "button",
             {
@@ -876,7 +879,7 @@ function completeSession() {
               },
               onClick: downloadRecording
             },
-            "📥 Download Recording"
+            "📥 Download Recording (MP3)"
           )
         : null
     );
