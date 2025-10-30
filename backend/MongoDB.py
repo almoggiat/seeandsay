@@ -70,7 +70,7 @@ class SeeSayMongoStorage:
         except Exception as e:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
-
+    ## Audio Storage
     def upload_audio(self, audio_file_path):
         """Uploads audio file to GridFS and returns the file_id."""
         if not os.path.exists(audio_file_path):
@@ -80,7 +80,6 @@ class SeeSayMongoStorage:
             file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
         logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
         return file_id
-
     def download_audio(self, file_id, output_path):
         file_data = self.fs.get(ObjectId(file_id))
         with open(output_path, "wb") as f:
@@ -89,6 +88,9 @@ class SeeSayMongoStorage:
         ## usage:
         # audio_id = user_doc['tests'][<testNum>]['audioFileId']
         # db._download_audio(audio_id, "recovered_audio.mp3")
+
+
+
 
     def add_user(self, user_id, user_name):
         """Add a new user to MongoDB if userId does not already exist"""
