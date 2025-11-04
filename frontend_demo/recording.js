@@ -8,6 +8,15 @@ const SessionRecorder = (function() {
   let audioChunks = [];
   let stream = null;
   let isRecording = false;
+  let isPaused = false;
+  
+  // Question timestamps tracking
+  let recordingStartTime = null;
+  let questionTimestamps = []; // Array of {questionNumber, timestamp}
+  
+  // Pause tracking
+  let pauseStartTime = null;
+  let totalPausedTime = 0; // Total milliseconds paused
 
   // Get browser-supported audio mime type (prioritize MP4/AAC for MP3-compatible output)
   function getSupportedMimeType() {
@@ -50,13 +59,21 @@ const SessionRecorder = (function() {
               const samples = audioBuffer.getChannelData(0); // Mono
               const sampleRate = audioBuffer.sampleRate;
               
+              // Convert Float32 samples to Int16 for lamejs
+              const int16Samples = new Int16Array(samples.length);
+              for (let i = 0; i < samples.length; i++) {
+                // Convert from -1.0 to 1.0 range to -32768 to 32767 range
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                int16Samples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+              }
+              
               // Use lamejs to encode to MP3
               const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); // Mono, sampleRate, bitrate
               const sampleBlockSize = 1152;
               const mp3Data = [];
               
-              for (let i = 0; i < samples.length; i += sampleBlockSize) {
-                const sampleChunk = samples.subarray(i, i + sampleBlockSize);
+              for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
+                const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
                 const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
                 if (mp3buf.length > 0) {
                   mp3Data.push(mp3buf);
@@ -71,6 +88,7 @@ const SessionRecorder = (function() {
               
               // Create MP3 blob
               const mp3Blob = new Blob(mp3Data, { type: "audio/mpeg" });
+              console.log("✅ MP3 conversion complete, size:", mp3Blob.size);
               resolve(mp3Blob);
             })
             .catch(function(err) {
@@ -170,8 +188,13 @@ const SessionRecorder = (function() {
       recorder.start(10000); // Collect data every 10 seconds
       isRecording = true;
       
+      // Initialize recording start time
+      recordingStartTime = Date.now();
+      questionTimestamps = [];
+      
       // Store in localStorage
       localStorage.setItem("sessionRecordingActive", "true");
+      localStorage.setItem("recordingStartTime", recordingStartTime.toString());
 
       console.log("🎙️ Started continuous session recording");
       return true;
@@ -184,9 +207,15 @@ const SessionRecorder = (function() {
   // Stop continuous recording
   function stopContinuousRecording() {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      // If paused, resume before stopping to ensure proper onstop handling
+      if (mediaRecorder.state === "paused") {
+        mediaRecorder.resume();
+      }
       mediaRecorder.stop();
       isRecording = false;
+      isPaused = false;
       localStorage.removeItem("sessionRecordingActive");
+      localStorage.removeItem("recordingPaused");
       
       // Stop all tracks
       if (stream) {
@@ -200,6 +229,76 @@ const SessionRecorder = (function() {
       return true;
     }
     return false;
+  }
+
+  // Pause recording
+  function pauseRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.pause();
+      isPaused = true;
+      pauseStartTime = Date.now();
+      
+      // Save pause state
+      localStorage.setItem("recordingPaused", "true");
+      localStorage.setItem("pauseStartTime", pauseStartTime.toString());
+      localStorage.setItem("totalPausedTime", totalPausedTime.toString());
+      
+      // Log pause event in timestamps
+      const currentTime = Date.now();
+      const elapsedMs = currentTime - recordingStartTime - totalPausedTime;
+      questionTimestamps.push({
+        questionNumber: "PAUSED",
+        timestamp: elapsedMs
+      });
+      localStorage.setItem("questionTimestamps", JSON.stringify(questionTimestamps));
+      
+      console.log("⏸️ Paused recording at", formatTimestamp(elapsedMs));
+      return true;
+    }
+    return false;
+  }
+
+  // Resume recording
+  async function resumeRecording() {
+    if (isPaused && mediaRecorder && mediaRecorder.state === "paused") {
+      // Calculate paused duration
+      if (pauseStartTime) {
+        const pauseDuration = Date.now() - pauseStartTime;
+        totalPausedTime += pauseDuration;
+        localStorage.setItem("totalPausedTime", totalPausedTime.toString());
+        console.log("⏸️ Was paused for", formatTimestamp(pauseDuration));
+      }
+      
+      isPaused = false;
+      pauseStartTime = null;
+      localStorage.removeItem("recordingPaused");
+      localStorage.removeItem("pauseStartTime");
+      
+      // Log resume event in timestamps
+      const currentTime = Date.now();
+      const elapsedMs = currentTime - recordingStartTime - totalPausedTime;
+      questionTimestamps.push({
+        questionNumber: "RESUMED",
+        timestamp: elapsedMs
+      });
+      localStorage.setItem("questionTimestamps", JSON.stringify(questionTimestamps));
+      
+      // Resume the paused recording
+      try {
+        mediaRecorder.resume();
+        console.log("▶️ Resumed recording at", formatTimestamp(elapsedMs));
+        return true;
+      } catch (error) {
+        console.error("❌ Failed to resume recording:", error);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // Check if recording is paused
+  function isRecordingPaused() {
+    return isPaused;
   }
 
   // Get final recording URL
@@ -256,6 +355,124 @@ const SessionRecorder = (function() {
     return isRecording || localStorage.getItem("sessionRecordingActive") === "true";
   }
 
+  // Mark question start with timestamp
+  function markQuestionStart(questionNumber) {
+    if (!recordingStartTime) {
+      // Try to recover from localStorage if page was refreshed
+      const stored = localStorage.getItem("recordingStartTime");
+      if (stored) {
+        recordingStartTime = parseInt(stored, 10);
+      } else {
+        console.warn("Recording start time not found");
+        return;
+      }
+    }
+    
+    // Recover totalPausedTime if not in memory
+    if (totalPausedTime === 0) {
+      const storedPausedTime = localStorage.getItem("totalPausedTime");
+      if (storedPausedTime) {
+        totalPausedTime = parseInt(storedPausedTime, 10);
+      }
+    }
+    
+    const currentTime = Date.now();
+    const elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
+    
+    questionTimestamps.push({
+      questionNumber: questionNumber,
+      timestamp: elapsedMs
+    });
+    
+    // Save to localStorage for persistence
+    localStorage.setItem("questionTimestamps", JSON.stringify(questionTimestamps));
+    
+    console.log("📝 Marked question", questionNumber, "at", formatTimestamp(elapsedMs));
+  }
+
+  // Format milliseconds to MM:SS
+  function formatTimestamp(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+  }
+
+  // Generate timestamp text file content
+  function generateTimestampText() {
+    // Try to load from localStorage if not in memory
+    if (questionTimestamps.length === 0) {
+      const stored = localStorage.getItem("questionTimestamps");
+      if (stored) {
+        try {
+          questionTimestamps = JSON.parse(stored);
+        } catch (e) {
+          console.error("Failed to parse stored timestamps:", e);
+        }
+      }
+    }
+    
+    if (questionTimestamps.length === 0) {
+      return "No question timestamps recorded";
+    }
+    
+    let text = "";
+    for (let i = 0; i < questionTimestamps.length; i++) {
+      const item = questionTimestamps[i];
+      text += "question " + item.questionNumber + " - " + formatTimestamp(item.timestamp) + "\n";
+    }
+    
+    return text;
+  }
+
+  // Download timestamp text file
+  function downloadTimestampFile(userId) {
+    const textContent = generateTimestampText();
+    const blob = new Blob([textContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "question_timestamps_" + (userId || "user") + "_" + Date.now() + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    console.log("📥 Downloaded timestamp file");
+  }
+
+  // Get timestamp text (for backend upload)
+  function getTimestampText() {
+    return generateTimestampText();
+  }
+
+  // Get recording and text data for backend upload
+  async function getRecordingAndText() {
+    const finalData = localStorage.getItem("sessionRecordingFinal");
+    const timestampText = getTimestampText();
+    
+    if (!finalData) {
+      console.warn("No recording data found");
+      return null;
+    }
+    
+    try {
+      const data = JSON.parse(finalData);
+      const blob = dataURLtoBlob(data.audio);
+      
+      return {
+        recordingBlob: blob,           // Audio blob (MP3 format)
+        mimeType: data.mimeType,       // MIME type (should be "audio/mpeg")
+        timestampText: timestampText,  // Timestamp text for questions
+        recordingDate: data.timestamp  // When the recording was created
+      };
+    } catch (e) {
+      console.error("Failed to prepare recording data:", e);
+      return null;
+    }
+  }
+
   // Clean up on session end
   function cleanup() {
     stopContinuousRecording();
@@ -263,14 +480,36 @@ const SessionRecorder = (function() {
     localStorage.removeItem("sessionRecordingUrl");
     localStorage.removeItem("sessionRecordingFinal");
     localStorage.removeItem("sessionRecordingChunks");
+    localStorage.removeItem("recordingStartTime");
+    localStorage.removeItem("questionTimestamps");
+    localStorage.removeItem("recordingPaused");
+    localStorage.removeItem("pauseStartTime");
+    localStorage.removeItem("totalPausedTime");
+    recordingStartTime = null;
+    questionTimestamps = [];
+    totalPausedTime = 0;
+    pauseStartTime = null;
+    isPaused = false;
     console.log("🧹 Cleaned up session recording");
   }
 
   // Get final recording URL (synchronous version for immediate use)
   function getFinalRecordingUrlSync() {
-    const stored = localStorage.getItem("sessionRecordingUrl");
-    if (stored) {
-      return stored;
+    // Don't use the stored URL as it becomes invalid after page refresh
+    // Always reconstruct from localStorage data
+    const finalData = localStorage.getItem("sessionRecordingFinal");
+    if (finalData) {
+      try {
+        const data = JSON.parse(finalData);
+        currentMimeType = data.mimeType || "audio/mpeg";
+        const blob = dataURLtoBlob(data.audio);
+        const url = URL.createObjectURL(blob);
+        // Update the stored URL for this session
+        localStorage.setItem("sessionRecordingUrl", url);
+        return url;
+      } catch (e) {
+        console.error("Failed to reconstruct recording:", e);
+      }
     }
     return null;
   }
@@ -279,12 +518,19 @@ const SessionRecorder = (function() {
   return {
     startContinuousRecording: startContinuousRecording,
     stopContinuousRecording: stopContinuousRecording,
+    pauseRecording: pauseRecording,
+    resumeRecording: resumeRecording,
+    isRecordingPaused: isRecordingPaused,
     getFinalRecordingUrl: getFinalRecordingUrl,
-    getFinalRecordingUrlSync: getFinalRecordingUrlSync, // Add synchronous version
+    getFinalRecordingUrlSync: getFinalRecordingUrlSync,
     getFinalRecordingData: getFinalRecordingData,
     getCurrentMimeType: getCurrentMimeType,
     getCurrentFileExtension: getCurrentFileExtension,
     isRecordingActive: isRecordingActive,
+    markQuestionStart: markQuestionStart,
+    downloadTimestampFile: downloadTimestampFile,
+    getTimestampText: getTimestampText,
+    getRecordingAndText: getRecordingAndText,
     cleanup: cleanup
   };
 })();
