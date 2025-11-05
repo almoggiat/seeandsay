@@ -788,6 +788,27 @@ const playQuestionOne = function()  {
     // Simplified: just complete the session
     completeSession();
   }
+async function getFinalAudioData() {
+  const recordingData = await getRecordingAndText();
+
+  if (!recordingData) {
+    console.error("No recording data available");
+    return null;
+  }
+
+  // Convert Blob to a File (optional but convenient for uploads)
+  const audioFile = new File([recordingData.recordingBlob], "recording.mp3", {
+    type: recordingData.mimeType,
+  });
+
+
+  // Return both for manual handling
+  return {
+    audioFile,                     // ready to send or store
+    timestampText: recordingData.timestampText,
+    recordingDate: recordingData.recordingDate
+  };
+}
 
 function completeSession() {
   setSessionCompleted(true);
@@ -808,15 +829,21 @@ function completeSession() {
     console.log("📊 Recording data:", recordingData);
   }
 
+  const finalData = await getFinalAudioData();
   // Send current user/session data to backend
-  updateUserTests(idDigits,
-                    ageYears,
-                    ageMonths,
-                    correctAnswers,
-                    partialAnswers,
-                    wrongAnswers,
-                    "This Is Audio",
-                    "This Is Text"); //MongoDB
+  if (finalData) {
+  // You manually feed it into your DB update
+  updateUserTests(
+    idDigits,
+    ageYears,
+    ageMonths,
+    correctAnswers,
+    partialAnswers,
+    wrongAnswers,
+    finalData.audioFile,             // audio file
+    finalData.timestampText          // timestamps text
+  ); //MongoDB
+}
 }
 
 
