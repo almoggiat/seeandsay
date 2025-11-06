@@ -812,8 +812,8 @@ function completeSession() {
                     correctAnswers,
                     partialAnswers,
                     wrongAnswers,
-                    "This Is Audio",
-                    "This Is Text"); //MongoDBB
+                    recordingData[0],
+                    recordingData[1]); //MongoDBB
 }
 
 
