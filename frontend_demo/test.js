@@ -798,14 +798,12 @@ function completeSession() {
     setIsPaused(false);
   }
 
-  // Stop continuous session recording (will handle paused state internally)
-  if (sessionRecordingStarted && permission) {
-    SessionRecorder.stopContinuousRecording();
-    console.log("🛑 Stopped session recording");
+  SessionRecorder.stopContinuousRecording();
+  console.log("🛑 Stopped session recording");
     
-    // Get final recording data
-    const recordingData = SessionRecorder.getFinalRecordingData();
-    console.log("📊 Recording data:", recordingData);
+  // Get final recording data
+  const recordingData = SessionRecorder.getFinalRecordingData();
+  console.log("📊 Recording data:", recordingData);
   }
 
   // Send current user/session data to backend
