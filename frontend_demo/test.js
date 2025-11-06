@@ -818,7 +818,7 @@ function completeSession() {
     correctAnswers,
     partialAnswers,
     wrongAnswers,
-    recordingData,             // audio file
+    recordingData.,             // audio file
     "this is text"          // timestamps text
   ); //MongoDB
 }
