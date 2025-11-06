@@ -808,6 +808,7 @@ function completeSession() {
     console.log("📊 Recording data:", recordingData);
   }
 
+  const finalData = await getFinalAudioData();
   // Send current user/session data to backend
   updateUserTests(idDigits,
                     ageYears,

@@ -27,7 +27,7 @@ async function createUser(userId, userName) {
   }
 }
 
-// update user info
+// update user tests
 async function updateUserTests(userId,ageYears,ageMonths, correct, partly, wrong, audioBlob, textContent) {
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
