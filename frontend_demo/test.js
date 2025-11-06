@@ -816,7 +816,7 @@ function completeSession() {
                     partialAnswers,
                     wrongAnswers,
                     "This Is Audio",
-                    "This Is Text"); //MongoDB
+                    "This Is Text"); //MongoDBB
 }
 
 
