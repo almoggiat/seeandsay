@@ -810,19 +810,14 @@ function completeSession() {
 
   const finalData = await getFinalAudioData();
   // Send current user/session data to backend
-  if (finalData) {
-  // You manually feed it into your DB update
-  updateUserTests(
-    idDigits,
-    ageYears,
-    ageMonths,
-    correctAnswers,
-    partialAnswers,
-    wrongAnswers,
-    "This is audio",             // audio file
-    "This is text"         // timestamps text
-  ); //MongoDB
-}
+  updateUserTests(idDigits,
+                    ageYears,
+                    ageMonths,
+                    correctAnswers,
+                    partialAnswers,
+                    wrongAnswers,
+                    "This Is Audio",
+                    "This Is Text"); //MongoDBB
 }
 
 
