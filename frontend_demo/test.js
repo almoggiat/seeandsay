@@ -808,6 +808,7 @@ function completeSession() {
     console.log("📊 Recording data:", recordingData);
   }
 
+  const finalData = await getFinalAudioData();
   // Send current user/session data to backend
   if (finalData) {
   // You manually feed it into your DB update
@@ -818,8 +819,8 @@ function completeSession() {
     correctAnswers,
     partialAnswers,
     wrongAnswers,
-    recordingData.,             // audio file
-    "this is text"          // timestamps text
+    "This is audio",             // audio file
+    "This is text"         // timestamps text
   ); //MongoDB
 }
 }

@@ -342,7 +342,6 @@ const SessionRecorder = (function() {
     const finalData = localStorage.getItem("sessionRecordingFinal");
     if (finalData) {
       try {
-        console.info("getFinalRecordingData SENDING")
         return JSON.parse(finalData);
       } catch (e) {
         console.error("Failed to parse final recording data:", e);
