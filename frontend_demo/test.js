@@ -804,7 +804,6 @@ function completeSession() {
   // Get final recording data
   const recordingData = SessionRecorder.getFinalRecordingData();
   console.log("📊 Recording data:", recordingData);
-  }
 
   // Send current user/session data to backend
   updateUserTests(idDigits,
