@@ -32,11 +32,11 @@ async function updateUserTests(userId, ageYears, ageMonths, correct, partly, wro
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
   try {
-    console.log("📤 Uploading test data to MongoDB...");
-    console.log("   User ID:", userId);
-    console.log("   Results:", correct, "correct,", partly, "partial,", wrong, "wrong");
-    console.log("   Audio:", audioBase64 ? "Present (" + (audioBase64.length / 1024).toFixed(2) + " KB base64)" : "None");
-    console.log("   Timestamps:", timestampText ? "Present" : "None");
+//    console.log("📤 Uploading test data to MongoDB...");
+//    console.log("   User ID:", userId);
+//    console.log("   Results:", correct, "correct,", partly, "partial,", wrong, "wrong");
+//    console.log("   Audio:", audioBase64 ? "Present (" + (audioBase64.length / 1024).toFixed(2) + " KB base64)" : "None");
+//    console.log("   Timestamps:", timestampText ? "Present" : "None");
     
     const response = await fetch(url, {
       method: "POST",

@@ -125,7 +125,7 @@ class SeeSayMongoStorage:
         """
         try:
             ## Upload audio
-            audio_file_id = self.upload_audio(audio_file_path)
+            # audio_file_id = self.upload_audio(audio_file_path)
 
             ## Data storage - audio as reference
             new_test = {
@@ -135,7 +135,7 @@ class SeeSayMongoStorage:
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,
-                'audioFileId': audio_file_id,
+                'audioFileId': audio_file_path,
                 'txtFile': final_evaluation
             }
 
