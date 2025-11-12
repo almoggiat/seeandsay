@@ -828,8 +828,8 @@ function completeSession() {
             correctAnswers,
             partialAnswers,
             wrongAnswers,
-            audioBase64,                     // ✅ MP3 audio as base64 string
-            recordingData.timestampText      // ✅ Timestamp text
+            "audioBase64",                     // ✅ MP3 audio as base64 string
+            "recordingData.timestampText"      // ✅ Timestamp text
           );
         };
         reader.onerror = function() {
