@@ -801,30 +801,42 @@ function completeSession() {
   // Stop continuous session recording and send data to backend
   if (sessionRecordingStarted && permission) {
     SessionRecorder.stopContinuousRecording();
-    console.log("🛑 Stopped session recording");
+    console.log("🛑 Stopped session recording, waiting for MP3 conversion...");
     
-    // Wait for recording to be processed, then send to backend
-    setTimeout(function() {
+    // Poll until recording is ready, then send to backend
+    var pollAttempts = 0;
+    var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
+    
+    var checkRecordingReady = function() {
+      pollAttempts++;
+      
       SessionRecorder.getRecordingAndText().then(function(data) {
-        if (data) {
-          console.log("📊 Recording data retrieved");
+        if (data && data.recordingBlob) {
+          console.log("✅ Recording ready after " + (pollAttempts * 100) + "ms");
           const reader = new FileReader();
           reader.onloadend = function() {
             updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
                             reader.result, data.timestampText); //MongoDB
           };
           reader.readAsDataURL(data.recordingBlob);
+        } else if (pollAttempts < maxAttempts) {
+          // Not ready yet, check again in 100ms
+          setTimeout(checkRecordingReady, 100);
         } else {
-          console.warn("⚠️ No recording data available");
+          // Timeout - send without recording
+          console.warn("⚠️ Recording conversion timeout after " + (maxAttempts * 100) + "ms");
           updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
       }).catch(function(err) {
-        console.error("❌ Error getting recording:", err);
+        console.error("❌ Error checking recording:", err);
         updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
-    }, 3000); // Wait 1 second for MP3 conversion to complete
+    };
+    
+    // Start polling after a small initial delay
+    setTimeout(checkRecordingReady, 200);
   } else {
     // No recording, send immediately
     updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
