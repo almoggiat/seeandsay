@@ -131,7 +131,7 @@ def create_user(user: CreateUserRequest):
 
 @app.post("/api/addTestToUser")
 def add_test(test: AddTestRequest):
-    logger.warning(f"Received user test: {test.dict()}")
+    logger.warning(f"Received user test: {test.userId}")
     # audioFile_after_base64 =
     success = storage.add_test_to_user(
         user_id=test.userId,
@@ -140,7 +140,7 @@ def add_test(test: AddTestRequest):
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,
-        audio_file_base64=test.audioFile,
+        audio_file_base64=test.audioFile64,
         timestamps=test.timestamps
     )
     if not success:
