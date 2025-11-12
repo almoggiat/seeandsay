@@ -195,6 +195,7 @@ const SessionRecorder = (function() {
       // Store in localStorage
       localStorage.setItem("sessionRecordingActive", "true");
       localStorage.setItem("recordingStartTime", recordingStartTime.toString());
+      localStorage.setItem("totalPausedTime", 0)
 
       console.log("🎙️ Started continuous session recording");
       return true;
@@ -266,7 +267,7 @@ const SessionRecorder = (function() {
         const pauseDuration = Date.now() - pauseStartTime;
         totalPausedTime += pauseDuration;
         localStorage.setItem("totalPausedTime", totalPausedTime.toString());
-        console.log("⏸️ Was paused for", formatTimestamp(pauseDuration));
+        console.log("⏸️ Was paused for", formatTimestamp(pauseDuration), "and overall", formatTimestamp(totalPausedTime));
       }
       
       isPaused = false;
@@ -374,6 +375,8 @@ const SessionRecorder = (function() {
       if (storedPausedTime) {
         totalPausedTime = parseInt(storedPausedTime, 10);
       }
+      console.log(totalPausedTime, "total")
+
     }
     
     const currentTime = Date.now();
