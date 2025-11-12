@@ -101,9 +101,6 @@ class SeeSayMongoStorage:
         Fetch a base64-encoded audio file from a user's test and save it as an audio file.
 
         Args:
-            mongo_uri (str): MongoDB connection string.
-            db_name (str): Database name.
-            collection_name (str): Collection name (e.g. "users").
             user_id (int | str): ID of the user to fetch.
             test_index (int): Index of the test in the 'tests' array (default: last test = -1).
             output_path (str): Path to save the decoded audio file (e.g. "test_audio.mp3").

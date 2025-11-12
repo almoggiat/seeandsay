@@ -812,7 +812,7 @@ function completeSession() {
       
       SessionRecorder.getRecordingAndText().then(function(data) {
         if (data && data.recordingBlob) {
-          console.log("✅ Recording ready after " + (pollAttempts * 100) + "ms");
+          console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
           const reader = new FileReader();
           reader.onloadend = function() {
             updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
@@ -824,7 +824,7 @@ function completeSession() {
           setTimeout(checkRecordingReady, 100);
         } else {
           // Timeout - send without recording
-          console.warn("⚠️ Recording conversion timeout after " + (maxAttempts * 100) + "ms");
+          console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
           updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
