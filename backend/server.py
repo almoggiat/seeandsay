@@ -16,7 +16,10 @@ from MongoDB import SeeSayMongoStorage
 
 from fastapi.middleware.cors import CORSMiddleware
 
-
+import base64
+import os
+from datetime import datetime
+from typing import Optional
 
 
 # ------------------------------------------------------
@@ -43,6 +46,53 @@ app.add_middleware(
     allow_methods=["*"],       # GET, POST, OPTIONS, etc.
     allow_headers=["*"],
 )
+
+
+# def base64_to_audio_file(base64_string: str, output_dir: str = "recordings", user_id: Optional[int] = None) -> str:
+#     """
+#     Converts a base64-encoded audio string to a playable MP3 file.
+#
+#     Args:
+#         base64_string: The base64 string (e.g., "data:audio/mpeg;base64,UklGRi...")
+#         output_dir: Directory to save the audio file (default: "recordings")
+#         user_id: Optional user ID to include in filename
+#
+#     Returns:
+#         str: Full path to the saved audio file
+#
+#     Raises:
+#         ValueError: If base64_string is invalid
+#         IOError: If file cannot be written
+#     """
+#     try:
+#         # Split the data URL to get just the base64 part
+#         if "," in base64_string:
+#             header, encoded = base64_string.split(",", 1)
+#         else:
+#             encoded = base64_string
+#
+#         # Decode base64 string to bytes
+#         audio_bytes = base64.b64decode(encoded)
+#
+#         # Create output directory if it doesn't exist
+#         os.makedirs(output_dir, exist_ok=True)
+#
+#         # Generate unique filename with timestamp
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         user_part = f"{user_id}_" if user_id else ""
+#         filename = f"recording_{user_part}{timestamp}.mp3"
+#         file_path = os.path.join(output_dir, filename)
+#
+#         # Write bytes to file
+#         with open(file_path, "wb") as f:
+#             f.write(audio_bytes)
+#
+#         print(f"✅ Audio file saved: {file_path} ({len(audio_bytes):,} bytes)")
+#         return file_path
+#
+#     except Exception as e:
+#         raise ValueError(f"Failed to convert base64 to audio file: {e}")
+
 
 
 # Request Models
@@ -85,6 +135,7 @@ def create_user(user: CreateUserRequest):
 @app.post("/api/addTestToUser")
 def add_test(test: AddTestRequest):
     logger.warning(f"Received user test: {test.dict()}")
+    # audioFile_after_base64 =
     success = storage.add_test_to_user(
         user_id=test.userId,
         age_years=test.ageYears,
@@ -106,3 +157,5 @@ def get_user(user_id: str):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"success": True, "user": user}
+
+
