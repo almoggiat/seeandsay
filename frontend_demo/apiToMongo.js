@@ -27,11 +27,17 @@ async function createUser(userId, userName) {
   }
 }
 
-// update user tests
-async function updateUserTests(userId,ageYears,ageMonths, correct, partly, wrong, audioBlob, textContent) {
+// update user info with test results, audio base64, and timestamps
+async function updateUserTests(userId, ageYears, ageMonths, correct, partly, wrong, audioBase64, timestampText) {
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
   try {
+    console.log("📤 Uploading test data to MongoDB...");
+    console.log("   User ID:", userId);
+    console.log("   Results:", correct, "correct,", partly, "partial,", wrong, "wrong");
+    console.log("   Audio:", audioBase64 ? "Present (" + (audioBase64.length / 1024).toFixed(2) + " KB base64)" : "None");
+    console.log("   Timestamps:", timestampText ? "Present" : "None");
+    
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,15 +48,20 @@ async function updateUserTests(userId,ageYears,ageMonths, correct, partly, wrong
         correct: correct,
         partly: partly,
         wrong: wrong,
-        audioFile: audioBlob,
-        finalEvaluation: textContent
-        }),
+        audioFile: audioBase64,        // Base64 string: "data:audio/mpeg;base64,..."
+        finalEvaluation: timestampText
+      }),
     });
 
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+
     const result = await response.json();
-    console.log("✅ Files uploaded:", result);
+    console.log("✅ Test data uploaded successfully:", result);
     return result;
   } catch (err) {
-    console.error("❌ Failed to upload files:", err);
+    console.error("❌ Failed to upload test data:", err);
+    return null;
   }
 }
