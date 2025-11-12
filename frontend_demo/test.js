@@ -808,15 +808,47 @@ function completeSession() {
     console.log("📊 Recording data:", recordingData);
   }
 
-  // Send current user/session data to backend
-  updateUserTests(idDigits,
-                    ageYears,
-                    ageMonths,
-                    correctAnswers,
-                    partialAnswers,
-                    wrongAnswers,
-                    "This Is Audio",
-                    "This Is Text"); //MongoDB
+  // Get recording data and send to backend
+  if (sessionRecordingStarted && permission) {
+    // Get the recording and timestamps
+    SessionRecorder.getRecordingAndText().then(function(recordingData) {
+      if (recordingData) {
+        console.log("📊 Recording data retrieved, converting to base64...");
+        
+        // Convert blob to base64 for JSON transmission
+        const reader = new FileReader();
+        reader.onloadend = function() {
+          const audioBase64 = reader.result; // "data:audio/mpeg;base64,..."
+          
+          // Send to backend with base64 audio and timestamps
+          updateUserTests(
+            idDigits,
+            ageYears,
+            ageMonths,
+            correctAnswers,
+            partialAnswers,
+            wrongAnswers,
+            audioBase64,                     // ✅ MP3 audio as base64 string
+            recordingData.timestampText      // ✅ Timestamp text
+          );
+        };
+        reader.onerror = function() {
+          console.error("Failed to convert audio to base64");
+          updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers, null, null);
+        };
+        reader.readAsDataURL(recordingData.recordingBlob);
+      } else {
+        console.warn("No recording data available");
+        updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers, null, null);
+      }
+    }).catch(function(error) {
+      console.error("Error getting recording data:", error);
+      updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers, null, null);
+    });
+  } else {
+    // No recording, send without audio
+    updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers, null, null);
+  }
 }
 
 
