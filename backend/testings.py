@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     print("Testing audiofile storage")
 
-    file_id=storage.upload_audio("/home/tom/PycharmProjects/seeandsay/backend/testRecording.m4a")
-    storage.download_audio(file_id,"/home/tom/PycharmProjects/seeandsay/backend/recovered_audio.m4a")
+    # file_id=storage.upload_audio("/home/tom/PycharmProjects/seeandsay/backend/testRecording.m4a")
+    storage.get_user_audioFile_from_64base("123321123")
 
 
