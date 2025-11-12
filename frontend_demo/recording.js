@@ -422,7 +422,7 @@ const SessionRecorder = (function() {
     let text = "";
     for (let i = 0; i < questionTimestamps.length; i++) {
       const item = questionTimestamps[i];
-      text += "question " + item.questionNumber + " - " + formatTimestamp(item.timestamp) + "\n";
+      text += i+"_question_" + item.questionNumber + "-" + formatTimestamp(item.timestamp) + "\n";
     }
     
     return text;
