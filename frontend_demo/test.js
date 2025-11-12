@@ -798,25 +798,38 @@ function completeSession() {
     setIsPaused(false);
   }
 
-  // Stop continuous session recording (will handle paused state internally)
+  // Stop continuous session recording and send data to backend
   if (sessionRecordingStarted && permission) {
     SessionRecorder.stopContinuousRecording();
     console.log("🛑 Stopped session recording");
     
-    // Get final recording data
-    const recordingData = SessionRecorder.getFinalRecordingData();
-    console.log("📊 Recording data:", recordingData);
+    // Wait for recording to be processed, then send to backend
+    setTimeout(function() {
+      SessionRecorder.getRecordingAndText().then(function(data) {
+        if (data) {
+          console.log("📊 Recording data retrieved");
+          const reader = new FileReader();
+          reader.onloadend = function() {
+            updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                            reader.result, data.timestampText); //MongoDB
+          };
+          reader.readAsDataURL(data.recordingBlob);
+        } else {
+          console.warn("⚠️ No recording data available");
+          updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                          null, null); //MongoDB
+        }
+      }).catch(function(err) {
+        console.error("❌ Error getting recording:", err);
+        updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                        null, null); //MongoDB
+      });
+    }, 1000); // Wait 1 second for MP3 conversion to complete
+  } else {
+    // No recording, send immediately
+    updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                    null, null); //MongoDB
   }
-
-  // Send current user/session data to backend
-  updateUserTests(idDigits,
-                    ageYears,
-                    ageMonths,
-                    correctAnswers,
-                    partialAnswers,
-                    wrongAnswers,
-                    "This Is Audio",
-                    "This Is Text"); //MongoDB
 }
 
 
