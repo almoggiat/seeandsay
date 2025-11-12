@@ -824,7 +824,7 @@ function completeSession() {
         updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
-    }, 1000); // Wait 1 second for MP3 conversion to complete
+    }, 3000); // Wait 1 second for MP3 conversion to complete
   } else {
     // No recording, send immediately
     updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
