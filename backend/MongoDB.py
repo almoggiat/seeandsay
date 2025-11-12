@@ -14,6 +14,8 @@ import os
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
+import base64
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,27 +72,78 @@ class SeeSayMongoStorage:
         except Exception as e:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
-    ## Audio Storage
-    def upload_audio(self, audio_file_path):
-        """Uploads audio file to GridFS and returns the file_id."""
-        if not os.path.exists(audio_file_path):
-            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
 
-        with open(audio_file_path, "rb") as f:
-            file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
-        logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
-        return file_id
-    def download_audio(self, file_id, output_path):
-        file_data = self.fs.get(ObjectId(file_id))
+    ## Audio FILE Storage --- NOT IN USE (We save string base64)
+    # def upload_audio(self, audio_file_path):
+    #     """Uploads audio file to GridFS and returns the file_id."""
+    #     if not os.path.exists(audio_file_path):
+    #         raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+    #
+    #     with open(audio_file_path, "rb") as f:
+    #         file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
+    #     logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
+    #     return file_id
+    # def download_audio(self, file_id, output_path):
+    #     file_data = self.fs.get(ObjectId(file_id))
+    #     with open(output_path, "wb") as f:
+    #         f.write(file_data.read())
+    #     logger.info(f"🎧 Audio ({file_id}) downloaded to {output_path}")
+    #     ## usage:
+    #     # audio_id = user_doc['tests'][<testNum>]['audioFileId']
+    #     # db._download_audio(audio_id, "recovered_audio.mp3")
+
+    import base64
+    from pymongo import MongoClient
+    from datetime import datetime
+
+    def get_user_audioFile_from_64base(self, user_id, test_index=-1, output_path="output_audio.mp3"):
+        """
+        Fetch a base64-encoded audio file from a user's test and save it as an audio file.
+
+        Args:
+            mongo_uri (str): MongoDB connection string.
+            db_name (str): Database name.
+            collection_name (str): Collection name (e.g. "users").
+            user_id (int | str): ID of the user to fetch.
+            test_index (int): Index of the test in the 'tests' array (default: last test = -1).
+            output_path (str): Path to save the decoded audio file (e.g. "test_audio.mp3").
+        """
+
+        db = self.db
+        collection = self.users_collection
+
+        # Fetch the user document
+        user = collection.find_one({"userId": user_id})
+        if not user:
+            raise ValueError(f"User with ID {user_id} not found.")
+
+        # Check if user has any tests
+        tests = user.get("tests", [])
+        if not tests:
+            raise ValueError(f"User {user_id} has no tests stored.")
+
+        # Select the test (DEFAULT: last one)
+        try:
+            selected_test = tests[test_index]
+        except IndexError:
+            raise IndexError(f"Invalid test index {test_index}. User has {len(tests)} tests.")
+
+        # Get the base64 audio string
+        base64_audio = selected_test.get("audioFile64")  # or "audioFile" depending on your schema
+        if not base64_audio:
+            raise ValueError(f"No 'audioFile64' (base64) found in test index {test_index}.")
+
+        # Decode base64 to bytes
+        try:
+            audio_bytes = base64.b64decode(base64_audio)
+        except Exception as e:
+            raise ValueError(f"Error decoding base64 audio: {e}")
+
+        # Save the file
         with open(output_path, "wb") as f:
-            f.write(file_data.read())
-        logger.info(f"🎧 Audio ({file_id}) downloaded to {output_path}")
-        ## usage:
-        # audio_id = user_doc['tests'][<testNum>]['audioFileId']
-        # db._download_audio(audio_id, "recovered_audio.mp3")
+            f.write(audio_bytes)
 
-
-
+        print(f"✅ Audio for user {user_id}, test #{test_index} saved to: {output_path}")
 
     def add_user(self, user_id, user_name):
         """Add a new user to MongoDB if userId does not already exist"""
@@ -118,13 +171,13 @@ class SeeSayMongoStorage:
             return False
 
 
-    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file_path, final_evaluation):
+    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file_base64, timestamps):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
         """
         try:
-            ## Upload audio
+            ## Upload audio --- NOT IN USE (We save string base64)
             # audio_file_id = self.upload_audio(audio_file_path)
 
             ## Data storage - audio as reference
@@ -135,8 +188,8 @@ class SeeSayMongoStorage:
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,
-                'audioFileId': audio_file_path,
-                'txtFile': final_evaluation
+                'audioFile64': audio_file_base64,
+                'timestamps': timestamps
             }
 
             ## Save

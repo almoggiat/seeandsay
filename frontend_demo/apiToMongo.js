@@ -48,8 +48,8 @@ async function updateUserTests(userId, ageYears, ageMonths, correct, partly, wro
         correct: correct,
         partly: partly,
         wrong: wrong,
-        audioFile: audioBase64,        // Base64 string: "data:audio/mpeg;base64,..."
-        finalEvaluation: timestampText
+        audioFile64: audioBase64,        // Base64 string: "data:audio/mpeg;base64,..."
+        timestamps: timestampText
       }),
     });
 

@@ -16,9 +16,6 @@ from MongoDB import SeeSayMongoStorage
 
 from fastapi.middleware.cors import CORSMiddleware
 
-import base64
-import os
-from datetime import datetime
 from typing import Optional
 
 
@@ -108,8 +105,8 @@ class AddTestRequest(BaseModel):
     correct: Optional[int] = None
     partly: Optional[int] = None
     wrong: Optional[int] = None
-    audioFile: str
-    finalEvaluation: str
+    audioFile64: str
+    timestamps: str
 
 ## TEST
 
@@ -143,8 +140,8 @@ def add_test(test: AddTestRequest):
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,
-        audio_file_path=test.audioFile,
-        final_evaluation=test.finalEvaluation
+        audio_file_base64=test.audioFile,
+        timestamps=test.timestamps
     )
     if not success:
         raise HTTPException(status_code=404, detail="User not found or exam not added")
