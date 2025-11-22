@@ -90,50 +90,59 @@ def speechmatics_runner(audioFilePath):
 
 def speaker_recognition(transcription):
     """
-    Identify the speaker - parent or child
+    Identify the speaker - parent or child.
+    If more than 2 speakers exist, do nothing and return MORE_THAN_TWO = 1.
     """
+
+    import re
+
     KEY_WORDS = ["בואו נתחיל את המשחק", "וננסה לענות", "באופן נכון"]
 
-    # Extract segments
-    pattern = r"(SPEAKER:\s*S[12])(.*?)(?=SPEAKER:\s*S[12]|$)"
+    # Extract segments (speaker + text)
+    pattern = r"(SPEAKER:\s*S[0-9]+)(.*?)(?=SPEAKER:\s*S[0-9]+|$)"
     blocks = re.findall(pattern, transcription, flags=re.DOTALL)
-    # FOR EXAMPLE:
-    # ("SPEAKER: S1", " Hello, how are you today?\n")
-    # ("SPEAKER: S2", " I’m worried because my son has been coughing.\n")
+
+    speakers = {speaker for speaker, _ in blocks}
+    if len(speakers) > 2:
+        # More than two speakers → return transcription and flag
+        return transcription, 1
 
     parent_speaker = None
+
     # Find which speaker contains any keyword
     for speaker, text in blocks:
         text_lower = text.lower()
         if any(k.lower() in text_lower for k in KEY_WORDS):
-            parent_speaker = speaker  # e.g., "SPEAKER: S1"
+            parent_speaker = speaker
             break
 
-    # If no keyword found - do nothing
+    # If no keyword found
     if parent_speaker is None:
-        return transcription
+        return transcription, 0  # no change but also not more than two
 
-    # The other speaker becomes child
-    child_speaker = "SPEAKER: S1" if parent_speaker == "SPEAKER: S2" else "SPEAKER: S2"
+    # Determine child speaker
+    # handle S1/S2 or any order dynamically
+    speakers = list(speakers)
+    child_speaker = [s for s in speakers if s != parent_speaker][0]
 
     # Replace in full transcription
     updated = transcription.replace(parent_speaker, "parent:")
     updated = updated.replace(child_speaker, "child:")
 
-    print(updated)
-    return updated
+    return updated, 0
+
 
 
 if __name__ == "__main__":
     print("This is main function of AI_Models_API")
 
-    audio_file_path = "backend/output_audio.mp3"
+    audio_file_path = "backend/audio_tom.mp3"
     trans = speechmatics_runner(audio_file_path)
     with open("backend/transcription.txt", "w") as f:
         f.write(trans)
     f.close()
 
-    trans_updated = speaker_recognition(trans)
+    trans_updated,MORE_THEN_TWO_SPEAKERS = speaker_recognition(trans)
     with open("backend/transcription_updated.txt", "w") as f:
         f.write(trans_updated)
     f.close()
