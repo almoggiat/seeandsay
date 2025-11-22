@@ -49,7 +49,7 @@ openAI_client = OpenAI(api_key= OPENAI_LINKCARRING_API_KEY)
 #     return result
 
 
-
+# speaker_sensitivity can be changed*
 def speechmatics_runner(audioFilePath):
     LANGUAGE = "he"
     settings = ConnectionSettings(
@@ -60,6 +60,11 @@ def speechmatics_runner(audioFilePath):
             "transcription_config": {"language": LANGUAGE,
                                      "operating_point": "enhanced",
                                      "diarization": "speaker",
+                                     "speaker_diarization_config": {
+                                         "speaker_sensitivity": 0.3,  # LOWER = FEWER speakers detected
+                                         "prefer_current_speaker": True,
+                                         "get_speakers": True
+                                     },
                                      "enable_entities": False}}
 
     with BatchClient(settings) as client:
