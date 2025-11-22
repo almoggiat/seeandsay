@@ -139,6 +139,7 @@ class SeeSayMongoStorage:
         # Save the file
         with open(output_path, "wb") as f:
             f.write(audio_bytes)
+        f.close()
 
         print(f"✅ Audio for user {user_id}, test #{test_index} saved to: {output_path}")
 
