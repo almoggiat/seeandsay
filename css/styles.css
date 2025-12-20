@@ -1,0 +1,611 @@
+/* =========================================================
+   GLOBAL LAYOUT
+   ========================================================= */
+
+/* Container for the whole app */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  text-align: center;
+  padding-top: 80px; /* Space for fixed progress bar */
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 10px 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 1000;
+}
+
+.pause-button {
+  transition: all 0.2s ease;
+}
+
+.pause-button:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #45a049);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Content area */
+.content-area {
+  flex: 1;
+  padding: 20px;
+}
+
+/* =========================================================
+   TEST CONTROL BUTTONNS
+   ========================================================= */
+
+.allowMic {
+  background: #e6f7fb;
+  color: #127a92;
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+
+.skipMic { margin-left: 10px;
+   background: #666 ;
+   color: #fff;
+   border-radius: 12px;
+   padding: 8px 14px;}
+
+/* Voice Identifier Screen */
+.voice-identifier-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.voice-identifier-screen h2 {
+  font-size: 28px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.voice-identifier-screen p {
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: #555;
+}
+
+.hebrew-text {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 30px 0;
+  padding: 20px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  direction: rtl;
+  line-height: 1.6;
+}
+
+/* Paused Overlay */
+.paused-overlay {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.paused-overlay button:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s;
+}
+
+/* AFK Warning Overlay */
+.afk-warning-overlay {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.afk-warning-overlay button:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s;
+  background-color: #45a049;
+}
+
+/* =========================================================
+   QUESTION + IMAGES SECTION
+   ========================================================= */
+
+/* Question row container */
+.question-row {
+  border: 2px solid #333;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  margin: 20px;
+  max-width: 90%;
+}
+
+/* Query text */
+.query-text {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+.skippedTest {
+  font-style: italic;
+   color: #666; 
+}
+
+/* Align question and traffic light */
+.question-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* =========================================================
+   IMAGE CHOICES
+   ========================================================= */
+
+/* Images container */
+.images-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  width: 900px;
+  position: relative;
+}
+
+/* Two-row layout */
+.two-row-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+}
+
+.image-row {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.top-row-big {
+  transform: scale(1.5);
+  margin: 10px;
+}
+
+/* Non-clickable images */
+.image[style*="opacity: 0.5"] {
+  filter: grayscale(50%);
+  pointer-events: none;
+}
+
+/* Hint system */
+.hint-container {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hint-chest {
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.hint-chest:hover {
+  transform: scale(1.1);
+}
+
+.hint-text {
+  background: #fff;
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 10px;
+  max-width: 200px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  z-index: 100;
+}
+
+/* Wrapper around each image (to position fireworks) */
+.image-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 10px;
+}
+
+/* Each image */
+.image {
+  width: 150px;
+  height: 150px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Fireworks above the correct image */
+.fireworks {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: auto;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* =========================================================
+   TRAFFIC LIGHT COMPONENT
+   ========================================================= */
+
+.traffic-light {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.light {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+/* Colors */
+.light.green {
+  background-color: green;
+}
+
+.light.orange {
+  background-color: orange;
+}
+
+.light.red {
+  background-color: red;
+}
+
+/* =========================================================
+   BOTTOM NAVIGATION
+   ========================================================= */
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  border-top: 1px solid #ddd;
+  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.bottom-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+.bottom-nav button .icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.bottom-nav button.active {
+  color: #42ABC7;
+  font-weight: bold;
+  background-color: #F7FDFF;
+  border-top: 3px solid #42ABC7;
+}
+
+/* =========================================================
+   HELP SECTION
+   ========================================================= */
+
+.content-area {
+  max-width: 800px;              /* Keep readable line length */
+  margin: 0 auto;                /* Center horizontally */
+  padding: 30px 20px;            /* Comfortable inner space */
+  background: #ffffff;           /* White background for clarity */
+  border-radius: 12px;           /* Soft rounded corners */
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08); /* Light shadow for depth */
+  font-family: Arial, sans-serif;
+  color: #333;                   /* Good contrast for text */
+  line-height: 1.6;              /* Easy-to-read spacing */
+  text-align: left;              /* Align text naturally */
+}
+
+/* Optional: nicer titles inside content area */
+.content-area h1, 
+.content-area h2 {
+  color: #42ABC7;               /* Match your active nav color */
+  margin-bottom: 15px;
+}
+
+.content-area ul {
+  margin: 10px 0 20px 20px;
+}
+
+.content-area p {
+  margin-bottom: 15px;
+}
+
+
+/* =========================================================
+   AGE INPUT SCREEN
+   ========================================================= */
+
+.age-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 100px;
+}
+
+.age-screen input {
+  width: 80px;
+  padding: 8px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.age-screen button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.age-invalid {
+  font-size: 20px;
+  font-weight: bold;
+  color: red;
+  margin-top: 100px;
+}
+
+/* =========================================================
+   RESET BUTTON (GLOBAL CONTROL)
+   ========================================================= */
+
+.reset-button {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  padding: 10px 16px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 1000;
+}
+
+/* =========================================================
+   RESPONSIVE: PHONE, TABLET (iPad), DESKTOP
+   ========================================================= */
+
+/* Phone: up to 599px */
+@media (max-width: 599px) {
+  .images-container {
+    width: 100%;
+    gap: 12px;
+  }
+  .image {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+  }
+  .query-text {
+    font-size: 18px;
+  }
+  .traffic-light .light {
+    width: 36px;
+    height: 36px;
+  }
+  .bottom-nav { height: 64px; }
+  .bottom-nav button { font-size: 13px; }
+  .bottom-nav button .icon { font-size: 22px; }
+}
+
+/* Tablet (iPad): 600px - 1023px */
+@media (min-width: 600px) and (max-width: 1023px) {
+  .images-container {
+    width: 700px;
+  }
+  .image {
+    width: 140px;
+    height: 140px;
+    border-radius: 12px;
+  }
+  .traffic-light .light {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Desktop: 1024px and up */
+@media (min-width: 1024px) {
+  .images-container {
+    width: 900px;
+  }
+  .image {
+    width: 160px;
+    height: 160px;
+    border-radius: 12px;
+  }
+}
+
+/* =========================================================
+   CHILD-FRIENDLY POLISH
+   - larger tap targets, rounded corners, soft colors
+   ========================================================= */
+
+.bottom-nav button {
+  padding: 8px 0;
+}
+
+.light {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.image:hover { transform: scale(1.02); transition: transform 120ms ease-in-out; }
+
+.content-area {
+  border-radius: 16px;
+}
+
+/* =========================================================
+   ADVANCED CHOICE BUTTONS
+   ========================================================= */
+
+.advanced-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.choice-btn {
+  min-width: 140px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.choice-btn.yes {
+  background: #d1f5e2;
+  color: #106b3a;
+}
+
+.choice-btn.no {
+  background: #ffe3e3;
+  color: #7a1f1f;
+}
+
+/* =========================================================
+   RECORDING CONTROLS + AUDIO REPLAY
+   ========================================================= */
+
+.rec-controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.rec-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.rec-btn.pause { background: #fff3cd; color: #7a5a00; }
+.rec-btn.resume { background: #e0f7d9; color: #1e6b32; }
+.rec-btn.stop  { background: #ffd6d6; color: #7a1f1f; }
+.rec-btn.redo  { background: #e6f0ff; color: #1a3f8b; }
+
+.audio-replay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.audio-replay audio {
+  width: min(420px, 90vw);
+}
+
+/* Tighter mobile scale per feedback */
+@media (max-width: 599px) {
+  .image { width: 100px; height: 100px; }
+  .query-text { font-size: 16px; }
+  .bottom-nav { height: 58px; }
+  .bottom-nav button { font-size: 12px; }
+  .bottom-nav button .icon { font-size: 20px; }
+  .choice-btn { min-width: 120px; font-size: 15px; padding: 8px 14px; }
+  .rec-btn { font-size: 14px; padding: 7px 12px; }
+}
+
+/* audio button */
+.replay-audio-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 24px;
+  font-size: 16px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transition: background-color 0.3s;
+}
+
+.replay-audio-btn:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.replay-audio-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
