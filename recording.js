@@ -416,16 +416,21 @@ const SessionRecorder = (function() {
     }
     
     if (questionTimestamps.length === 0) {
-      return "No question timestamps recorded";
+      return "[]";
     }
     
-    let text = "";
-    for (let i = 0; i < questionTimestamps.length; i++) {
-      const item = questionTimestamps[i];
-      text += i+"_question_" + item.questionNumber + "-" + formatTimestamp(item.timestamp) + "\n";
-    }
+    // Filter out PAUSED and RESUMED entries, only keep actual questions
+    const questionEntries = questionTimestamps.filter(function(item) {
+      return item.questionNumber !== "PAUSED" && item.questionNumber !== "RESUMED";
+    });
     
-    return text;
+    // Convert to array of tuples: [question_number, time_in_seconds]
+    const timestampArray = questionEntries.map(function(item) {
+      const timeInSeconds = Math.floor(item.timestamp / 1000); // Convert ms to seconds, round down
+      return [parseInt(item.questionNumber, 10), timeInSeconds];
+    });
+    
+    return JSON.stringify(timestampArray);
   }
 
   // Download timestamp text file
@@ -474,6 +479,13 @@ const SessionRecorder = (function() {
       console.error("Failed to prepare recording data:", e);
       return null;
     }
+  }
+
+  // Reset timestamps (for restarting recording)
+  function resetTimestamps() {
+    questionTimestamps = [];
+    localStorage.removeItem("questionTimestamps");
+    console.log("🔄 Reset timestamps");
   }
 
   // Clean up on session end
@@ -534,6 +546,7 @@ const SessionRecorder = (function() {
     downloadTimestampFile: downloadTimestampFile,
     getTimestampText: getTimestampText,
     getRecordingAndText: getRecordingAndText,
+    resetTimestamps: resetTimestamps,
     cleanup: cleanup
   };
 })();

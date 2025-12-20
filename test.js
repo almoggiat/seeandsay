@@ -22,10 +22,12 @@ function Test({ allQuestions }) {
   const [microphoneSkipped, setMicrophoneSkipped] = usePersistentState("microphoneSkipped", false);
   const [voiceIdentifierConfirmed, setVoiceIdentifierConfirmed] = usePersistentState("voiceIdentifierConfirmed", false);
   
-  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
-  // const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
-  // const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
-  // const [recPaused, setPaused] = usePersistentState("recPaused", false);
+  // Reading validation states
+  const [readingValidated, setReadingValidated] = usePersistentState("readingValidated", false);
+  const [readingValidationResult, setReadingValidationResult] = usePersistentState("readingValidationResult", null); // null = no connection, true = valid, false = invalid
+  const [readingRecordingBlob, setReadingRecordingBlob] = usePersistentState("readingRecordingBlob", null);
+  
+
 
   // Session-only states
   const [images, setImages] = React.useState([]);
@@ -44,6 +46,7 @@ function Test({ allQuestions }) {
   // Hint states
   const [showHint, setShowHint] = React.useState(false);
   const [hintText, setHintText] = React.useState("");
+  const [commentText, setCommentText] = React.useState("");
   
   // Multi-answer and ordered answer states
   const [answerType, setAnswerType] = React.useState("single"); // "single", "multi", "ordered", "mask"
@@ -56,14 +59,7 @@ function Test({ allQuestions }) {
   const [maskImage, setMaskImage] = React.useState(null); // HTMLImageElement for the mask
   const [maskCanvas, setMaskCanvas] = React.useState(null); // Canvas for pixel detection
 
-  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
-  // Mic session-only
-  // const [stream, setStream] = React.useState(null);
-  // const [mediaRecorder, setMediaRecorder] = React.useState(null);
-  // const [recording, setRecording] = React.useState(false);
-  // Countdown + recording control
-  // const [countdown, setCountdown] = React.useState(0);
-  // const [recordingStopped, setRecordingStopped] = React.useState(false);
+
   
   // Continuous recording state (persistent so it survives refresh)
   const [sessionRecordingStarted, setSessionRecordingStarted] = usePersistentState("sessionRecordingStarted", false);
@@ -208,25 +204,138 @@ React.useEffect(() => {
     // sessionRecordingStarted will be set by the useEffect when voice identifier screen appears
   };
 
-  const confirmVoiceIdentifier = function() {
-    // Recording already started when screen appeared, just confirm and continue
-    setVoiceIdentifierConfirmed(true);
-    
-    // Mark question 1 start timestamp now that recording has started
-    if (questions.length > 0 && (permission || microphoneSkipped)) {
-      const firstQuestion = questions[0];
-      if (firstQuestion) {
-        SessionRecorder.markQuestionStart(firstQuestion.query_number);
-        console.log("📝 Marked question 1 start at voice identifier confirmation");
+  const confirmVoiceIdentifier = async function() {
+    // Stop the reading recording
+    if (permission && sessionRecordingStarted) {
+      SessionRecorder.stopContinuousRecording();
+      console.log("🛑 Stopped reading recording, preparing for validation...");
+      
+      // Wait for recording to be processed and converted to MP3
+      // Poll until recording is ready (similar to completeSession)
+      var pollAttempts = 0;
+      var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
+      
+      var checkRecordingReady = async function() {
+        pollAttempts++;
+        
+        try {
+          const recordingData = await SessionRecorder.getRecordingAndText();
+          if (recordingData && recordingData.recordingBlob) {
+            console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
+            // Convert blob to base64
+            const reader = new FileReader();
+            reader.onloadend = async function() {
+              const audioBase64 = reader.result;
+              setReadingRecordingBlob(audioBase64);
+              
+              // Send to backend for validation
+              const validationResult = await validateReadingRecording(audioBase64);
+              setReadingValidationResult(validationResult);
+              
+              if (validationResult === true) {
+                // Valid - show continue button
+                setReadingValidated(true);
+              } else if (validationResult === false) {
+                // Invalid - will restart recording
+                setReadingValidated(false);
+              } else {
+                // No connection - show options
+                setReadingValidated(false);
+              }
+            };
+            reader.readAsDataURL(recordingData.recordingBlob);
+          } else if (pollAttempts < maxAttempts) {
+            // Not ready yet, check again in 100ms
+            setTimeout(checkRecordingReady, 100);
+          } else {
+            // Timeout - treat as no connection
+            console.warn("⚠️ Reading recording conversion timeout");
+            setReadingValidationResult(null);
+            setReadingValidated(false);
+          }
+        } catch (err) {
+          console.error("Error getting reading recording:", err);
+          if (pollAttempts < maxAttempts) {
+            setTimeout(checkRecordingReady, 100);
+          } else {
+            setReadingValidationResult(null);
+            setReadingValidated(false);
+          }
+        }
+      };
+      
+      // Start polling after a small initial delay
+      setTimeout(checkRecordingReady, 200);
+    } else {
+      // No recording, skip validation
+      setReadingValidationResult(null);
+      setReadingValidated(true);
+    }
+  };
+  
+  const handleReadingValidationContinue = async function() {
+    // Restart recording for the actual test
+    if (permission) {
+      // Clean up old recording data
+      SessionRecorder.cleanup();
+      
+      // Reset timestamps so they count from question 1
+      SessionRecorder.resetTimestamps();
+      
+      // Start new recording for the test
+      const started = await SessionRecorder.startContinuousRecording();
+      if (started) {
+        setSessionRecordingStarted(true);
+        console.log("✅ Started test recording");
+        
+        // Mark question 1 start timestamp after a brief delay to ensure recording is active
+        setTimeout(function() {
+          if (questions.length > 0) {
+            const firstQuestion = questions[0];
+            if (firstQuestion) {
+              SessionRecorder.markQuestionStart(firstQuestion.query_number);
+              console.log("📝 Marked question 1 start at test start");
+            }
+          }
+        }, 100);
+      }
+    } else {
+      // Even without recording, mark question 1 if microphone was skipped
+      if (questions.length > 0 && microphoneSkipped) {
+        const firstQuestion = questions[0];
+        if (firstQuestion) {
+          SessionRecorder.markQuestionStart(firstQuestion.query_number);
+          console.log("📝 Marked question 1 start at test start (no recording)");
+        }
       }
     }
     
+    setVoiceIdentifierConfirmed(true);
+    setReadingValidated(true);
     playQuestionOne();
   };
+  
+  const handleReadingValidationRetry = async function() {
+    // Reset states and restart recording
+    setReadingValidated(false);
+    setReadingValidationResult(null);
+    setReadingRecordingBlob(null);
+    
+    // Restart recording
+    if (permission) {
+      SessionRecorder.cleanup();
+      SessionRecorder.resetTimestamps();
+      const started = await SessionRecorder.startContinuousRecording();
+      if (started) {
+        setSessionRecordingStarted(true);
+        console.log("🔄 Restarted reading recording");
+      }
+    }
+  };
 
-  // Auto-start recording when voice identifier screen appears
+  // Auto-start recording when voice identifier screen appears (only if not validated yet)
   React.useEffect(function() {
-    if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed && !sessionRecordingStarted) {
+    if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed && !sessionRecordingStarted && !readingValidated) {
       if (permission) {
         // Start recording when the voice identifier screen appears
         async function startRecording() {
@@ -247,7 +356,7 @@ React.useEffect(() => {
         setSessionRecordingStarted(true);
       }
     }
-  }, [permission, microphoneSkipped, voiceIdentifierConfirmed, sessionRecordingStarted]);
+  }, [permission, microphoneSkipped, voiceIdentifierConfirmed, sessionRecordingStarted, readingValidated]);
 
   // Start AFK timer when test begins
   React.useEffect(function() {
@@ -521,86 +630,7 @@ const playQuestionOne = function()  {
     }
   };
 
-  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
-  // Recording controls
-  /*
-  const startRecording = function() {
-    if (!stream) return;
-
-    // Pick a browser-supported audio mime type (Safari prefers mp4/aac)
-    let preferredMime = "";
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/mp4;codecs=mp4a.40.2",
-      "audio/mp4",
-      "audio/ogg;codecs=opus",
-      "audio/ogg"
-    ];
-    for (let i = 0; i < candidates.length; i++) {
-      const t = candidates[i];
-      try {
-        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
-          preferredMime = t;
-          break;
-        }
-      } catch (e) {}
-    }
-
-    const recorderOptions = preferredMime ? { mimeType: preferredMime } : undefined;
-    const recorder = new MediaRecorder(stream, recorderOptions);
-    setMediaRecorder(recorder);
-    const chunks = [];
-    recorder.ondataavailable = function(e) {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-    recorder.onstop = function() {
-      const blobType = preferredMime || (chunks[0] && chunks[0].type) || "audio/webm";
-      const blob = new Blob(chunks, { type: blobType });
-      const url = URL.createObjectURL(blob);
-      setAudioUrl(url);
-      setAudioChunks(chunks);
-      setRecording(false);
-      setRecordingStopped(true);
-    };
-    recorder.start();
-    setRecording(true);
-    setRecordingStopped(false);
-
-    setTimeout(function() {
-      if (recorder.state === "recording") recorder.stop();
-    }, 60000);
-  };
-
-  const pauseRecording = function() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.pause();
-      setPaused(true);
-    } else if (mediaRecorder && mediaRecorder.state === "paused") {
-      mediaRecorder.resume();
-      setPaused(false);
-    }
-  };
-
-  const stopRecording = function() {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-  };
-
-  const redoRecording = function() {
-    // Reset previous recording and start a new one
-    setAudioUrl(null);
-    setAudioChunks([]);
-    setRecordingStopped(false);
-    setPaused(false);
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      try { mediaRecorder.stop(); } catch (e) {}
-    }
-    // Small timeout to allow previous stop to settle before starting again
-    setTimeout(function() {
-      startRecording();
-    }, 50);
-  };
-  */
+  
 
   // =============================================================================
   // HELPER FUNCTIONS
@@ -619,6 +649,7 @@ const playQuestionOne = function()  {
           query_type: q.query_type.trim().normalize("NFC"),
           age_group: q.age_group.trim().normalize("NFC"),
           query: (q.query || "").trim(),
+          comments: (q.comments || "").trim(), // Preserve comments field
         };
       });
     
@@ -649,7 +680,7 @@ const playQuestionOne = function()  {
     if (!q) return;
 
     // Mark question start timestamp for recording
-    // Skip question 1 here as it will be marked when voice identifier is confirmed
+    // Skip question 1 here as it will be marked when test starts
     if ((permission || microphoneSkipped) && voiceIdentifierConfirmed && index > 0) {
       SessionRecorder.markQuestionStart(q.query_number);
     }
@@ -774,6 +805,10 @@ const playQuestionOne = function()  {
     // Set hint states
     setShowHint(false);
     setHintText(q.hint || "");
+    
+    // Set comment states - ensure we get the comment from the question object
+    const comment = (q.comments && q.comments.trim()) || "";
+    setCommentText(comment);
     
     // Reset non-clickable image
     setNonClickableImage(null);
@@ -903,42 +938,7 @@ function completeSession() {
     };
   }, [ageConfirmed, questions, currentIndex, sessionCompleted]);
 
-  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
-  // Countdown effect
-  /*
-  React.useEffect(
-    function countdownEffect() {
-      // Skip countdown if microphone was skipped
-      if (microphoneSkipped) return;
-      
-      if (countdown > 0) {
-        const timer = setTimeout(function() {
-          setCountdown(function(c) {
-            return c - 1;
-          });
-        }, 1000);
-        return function() {
-          clearTimeout(timer);
-        };
-      }
-      if (countdown === 0 && questionType === "E" && !recording && !recordingStopped) {
-        startRecording();
-      }
-    },
-    [countdown, questionType, recording, recordingStopped, microphoneSkipped]
-  );
-
-  // Continue after recording
-  React.useEffect(
-    function recordingStoppedEffect() {
-      if (recordingStopped) {
-        setShowContinue(true);
-      }
-    },
-    [recordingStopped]
-  );
-  */
-
+ 
   // =============================================================================
   // RENDER
   // =============================================================================
@@ -1067,6 +1067,120 @@ function completeSession() {
   }
 
   if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed) {
+    // Show validation result screen if validation has been attempted
+    if (readingValidationResult !== null || readingRecordingBlob !== null) {
+      if (readingValidationResult === true) {
+        // Valid - show continue button
+        return React.createElement(
+          "div",
+          { className: "voice-identifier-screen" },
+          React.createElement("h2", null, "Reading Validated"),
+          React.createElement("p", { style: { fontSize: "18px", color: "#4CAF50", margin: "20px 0" } }, 
+            "✅ Your reading has been validated successfully!"
+          ),
+          React.createElement(
+            "button",
+            { 
+              className: "continue-button",
+              onClick: handleReadingValidationContinue,
+              style: {
+                padding: "12px 24px",
+                fontSize: "18px",
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                marginTop: "20px"
+              }
+            },
+            "Continue to Test"
+          )
+        );
+      } else if (readingValidationResult === false) {
+        // Invalid - show retry message
+        return React.createElement(
+          "div",
+          { className: "voice-identifier-screen" },
+          React.createElement("h2", null, "Reading Not Valid"),
+          React.createElement("p", { style: { fontSize: "18px", color: "#c62828", margin: "20px 0" } }, 
+            "❌ Please try reading the sentence again."
+          ),
+          React.createElement(
+            "button",
+            { 
+              className: "continue-button",
+              onClick: handleReadingValidationRetry,
+              style: {
+                padding: "12px 24px",
+                fontSize: "18px",
+                backgroundColor: "#FF9800",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                marginTop: "20px"
+              }
+            },
+            "Try Again"
+          )
+        );
+      } else {
+        // No connection - show options
+        return React.createElement(
+          "div",
+          { className: "voice-identifier-screen" },
+          React.createElement("h2", null, "No Backend Connection"),
+          React.createElement("p", { style: { fontSize: "16px", color: "#666", margin: "20px 0" } }, 
+            "Unable to connect to the backend for validation."
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "flex", gap: "10px", justifyContent: "center", marginTop: "20px" } },
+            React.createElement(
+              "button",
+              { 
+                className: "continue-button",
+                onClick: handleReadingValidationContinue,
+                style: {
+                  padding: "12px 24px",
+                  fontSize: "18px",
+                  backgroundColor: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }
+              },
+              "Continue Without Backend"
+            ),
+            React.createElement(
+              "button",
+              { 
+                className: "continue-button",
+                onClick: handleReadingValidationRetry,
+                style: {
+                  padding: "12px 24px",
+                  fontSize: "18px",
+                  backgroundColor: "#FF9800",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }
+              },
+              "Try Reading Again"
+            )
+          )
+        );
+      }
+    }
+    
+    // Show reading instruction screen
     return React.createElement(
       "div",
       { className: "voice-identifier-screen" },
@@ -1108,7 +1222,7 @@ function completeSession() {
         "בואו נתחיל את המשחק, וננסה לענות על תשובות באופן נכון"
       ),
       React.createElement("p", { style: { fontSize: "14px", color: "#666", fontStyle: "italic" } }, 
-        "After reading the sentence, click Continue to start the test"
+        "After reading the sentence, click Continue to validate your reading"
       ),
       React.createElement(
         "button",
@@ -1595,7 +1709,7 @@ function completeSession() {
                     )
                   : null
               )
-            : null
+            : null,
         )
       : null,
 
@@ -1641,6 +1755,27 @@ function completeSession() {
               );
             })
           )
+        )
+      : null,
+    // Comments display (if comment text exists) - shown for both comprehension and expression questions
+    commentText && commentText.trim() !== ""
+      ? React.createElement(
+          "div",
+          {
+            style: {
+              padding: "8px 12px",
+              backgroundColor: "#f0f8ff",
+              border: "1px solid #b0d4ff",
+              borderRadius: "6px",
+              fontSize: "13px",
+              color: "#333",
+              maxWidth: "90%",
+              margin: "10px auto 0",
+              textAlign: "center",
+              lineHeight: "1.4"
+            }
+          },
+          commentText
         )
       : null
   );
