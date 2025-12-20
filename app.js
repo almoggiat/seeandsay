@@ -55,11 +55,23 @@ function App() {
     localStorage.removeItem("wrongAnswers");
     localStorage.removeItem("permission");
     localStorage.removeItem("microphoneSkipped");
+    localStorage.removeItem("voiceIdentifierConfirmed");
+    localStorage.removeItem("testPaused");
     localStorage.removeItem("audioChunks");
     localStorage.removeItem("audioUrl");
     localStorage.removeItem("recPaused");
     localStorage.removeItem("devMode");
     localStorage.removeItem("idDigits");
+    localStorage.removeItem("sessionCompleted");
+    localStorage.removeItem("sessionRecordingStarted");
+    
+    // Clean up continuous session recording
+    localStorage.removeItem("sessionRecordingActive");
+    localStorage.removeItem("sessionRecordingUrl");
+    localStorage.removeItem("sessionRecordingFinal");
+    localStorage.removeItem("sessionRecordingChunks");
+    localStorage.removeItem("recordingStartTime");
+    localStorage.removeItem("questionTimestamps");
 
     window.location.reload();
   }

@@ -1,7 +1,7 @@
 function Test({ allQuestions }) {
-  // =============================================================================
+  // ============================================================================
   // STATE DECLARATIONS
-  // =============================================================================
+  // ============================================================================
 
   const [questions, setQuestions] = React.useState([]);
 
@@ -20,16 +20,19 @@ function Test({ allQuestions }) {
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
   const [microphoneSkipped, setMicrophoneSkipped] = usePersistentState("microphoneSkipped", false);
-  const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
-  const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
-  const [recPaused, setPaused] = usePersistentState("recPaused", false);
+  const [voiceIdentifierConfirmed, setVoiceIdentifierConfirmed] = usePersistentState("voiceIdentifierConfirmed", false);
+  
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
+  // const [audioChunks, setAudioChunks] = usePersistentState("audioChunks", []);
+  // const [audioUrl, setAudioUrl] = usePersistentState("audioUrl", null);
+  // const [recPaused, setPaused] = usePersistentState("recPaused", false);
 
   // Session-only states
   const [images, setImages] = React.useState([]);
   const [target, setTarget] = React.useState("");
   const [showContinue, setShowContinue] = React.useState(false);
   const [clickedCorrect, setClickedCorrect] = React.useState(false);
-  const [sessionCompleted, setSessionCompleted] = React.useState(false);
+  const [sessionCompleted, setSessionCompleted] = usePersistentState("sessionCompleted", false);
   const [questionType, setQuestionType] = React.useState("C");
   
   // Two-row layout states
@@ -53,14 +56,26 @@ function Test({ allQuestions }) {
   const [maskImage, setMaskImage] = React.useState(null); // HTMLImageElement for the mask
   const [maskCanvas, setMaskCanvas] = React.useState(null); // Canvas for pixel detection
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Mic session-only
-  const [stream, setStream] = React.useState(null);
-  const [mediaRecorder, setMediaRecorder] = React.useState(null);
-  const [recording, setRecording] = React.useState(false);
-
+  // const [stream, setStream] = React.useState(null);
+  // const [mediaRecorder, setMediaRecorder] = React.useState(null);
+  // const [recording, setRecording] = React.useState(false);
   // Countdown + recording control
-  const [countdown, setCountdown] = React.useState(0);
-  const [recordingStopped, setRecordingStopped] = React.useState(false);
+  // const [countdown, setCountdown] = React.useState(0);
+  // const [recordingStopped, setRecordingStopped] = React.useState(false);
+  
+  // Continuous recording state (persistent so it survives refresh)
+  const [sessionRecordingStarted, setSessionRecordingStarted] = usePersistentState("sessionRecordingStarted", false);
+
+  // Pause state (persistent)
+  const [isPaused, setIsPaused] = usePersistentState("testPaused", false);
+  
+  // AFK timer states
+  const [afkTimerActive, setAfkTimerActive] = React.useState(false);
+  const [showAfkWarning, setShowAfkWarning] = React.useState(false);
+  const afkTimerRef = React.useRef(null);
+  const afkWarningTimerRef = React.useRef(null);
 
   // Image loading state
   const [currentQuestionImagesLoaded, setCurrentQuestionImagesLoaded] = React.useState(false);
@@ -167,26 +182,98 @@ React.useEffect(() => {
     }
     // Simply confirm age and start with all questions
     setAgeConfirmed(true);
-    sendToBackend(id, y, m, "", "")
+    createUser(idDigits, 'SomeUserName') //MongoDB
   }
 
   const getMicrophonePermission = async function() {
     if ("MediaRecorder" in window) {
       try {
-        const streamData = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Just request microphone access without starting recording yet
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop the test stream immediately - we'll start recording on voice identifier
+        stream.getTracks().forEach(function(track) {
+          track.stop();
+        });
         setPermission(true);
-        setStream(streamData);
+        console.log("✅ Microphone permission granted");
       } catch (err) {
         alert(err.message);
       }
     } else alert("The MediaRecorder API is not supported in your browser.");
-    playQuestionOne()
   };
 
   const skipMicrophone = function() {
+    // Even if skipping recording, mark that user interacted with microphone prompt
     setMicrophoneSkipped(true);
-    playQuestionOne()
+    // sessionRecordingStarted will be set by the useEffect when voice identifier screen appears
   };
+
+  const confirmVoiceIdentifier = function() {
+    // Recording already started when screen appeared, just confirm and continue
+    setVoiceIdentifierConfirmed(true);
+    
+    // Mark question 1 start timestamp now that recording has started
+    if (questions.length > 0 && (permission || microphoneSkipped)) {
+      const firstQuestion = questions[0];
+      if (firstQuestion) {
+        SessionRecorder.markQuestionStart(firstQuestion.query_number);
+        console.log("📝 Marked question 1 start at voice identifier confirmation");
+      }
+    }
+    
+    playQuestionOne();
+  };
+
+  // Auto-start recording when voice identifier screen appears
+  React.useEffect(function() {
+    if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed && !sessionRecordingStarted) {
+      if (permission) {
+        // Start recording when the voice identifier screen appears
+        async function startRecording() {
+          try {
+            const started = await SessionRecorder.startContinuousRecording();
+            if (started) {
+              setSessionRecordingStarted(true);
+              console.log("✅ Continuous recording started on voice identifier screen");
+            }
+          } catch (err) {
+            console.error("Failed to start recording:", err);
+            alert("Failed to start recording: " + err.message);
+          }
+        }
+        startRecording();
+      } else if (microphoneSkipped) {
+        // Mark as started even if no recording
+        setSessionRecordingStarted(true);
+      }
+    }
+  }, [permission, microphoneSkipped, voiceIdentifierConfirmed, sessionRecordingStarted]);
+
+  // Start AFK timer when test begins
+  React.useEffect(function() {
+    if (voiceIdentifierConfirmed && !isPaused && !sessionCompleted) {
+      resetAfkTimer();
+    }
+    
+    // Cleanup timers on unmount
+    return function() {
+      stopAfkTimer();
+    };
+  }, [voiceIdentifierConfirmed]);
+
+  // Reset AFK timer when loading a new question
+  React.useEffect(function() {
+    if (voiceIdentifierConfirmed && !isPaused && !sessionCompleted) {
+      resetAfkTimer();
+    }
+  }, [currentIndex]);
+
+  // Stop AFK timer when paused or completed
+  React.useEffect(function() {
+    if (isPaused || sessionCompleted) {
+      stopAfkTimer();
+    }
+  }, [isPaused, sessionCompleted]);
 
 
 const playQuestionAudio = function() {
@@ -199,6 +286,94 @@ const playQuestionAudio = function() {
 
 const replayQuestionAudio = function() {
   playQuestionAudio();
+};
+
+// =============================================================================
+// PAUSE/RESUME AND AFK TIMER FUNCTIONS
+// =============================================================================
+
+// Pause test
+const pauseTest = function() {
+  if (isPaused) return;
+  
+  setIsPaused(true);
+  
+  // Pause recording if active
+  if (permission && sessionRecordingStarted) {
+    SessionRecorder.pauseRecording();
+  }
+  
+  // Stop AFK timers
+  stopAfkTimer();
+  
+  console.log("⏸️ Test paused");
+};
+
+// Resume test
+const resumeTest = async function() {
+  if (!isPaused) return;
+  
+  // Resume recording if active (do this BEFORE setting isPaused to false)
+  if (permission && sessionRecordingStarted) {
+    await SessionRecorder.resumeRecording();
+  }
+  
+  // Now set isPaused to false
+  setIsPaused(false);
+  
+  // Restart AFK timer
+  resetAfkTimer();
+  
+  console.log("▶️ Test resumed");
+};
+
+// Reset AFK timer (called on user activity)
+const resetAfkTimer = function() {
+  if (isPaused || sessionCompleted || !voiceIdentifierConfirmed) return;
+  
+  // Clear existing timers
+  if (afkTimerRef.current) {
+    clearTimeout(afkTimerRef.current);
+  }
+  if (afkWarningTimerRef.current) {
+    clearTimeout(afkWarningTimerRef.current);
+  }
+  
+  // Hide warning if showing
+  setShowAfkWarning(false);
+  
+  // Set 5-minute timer for warning
+  afkTimerRef.current = setTimeout(function() {
+    setShowAfkWarning(true);
+    console.log("⚠️ AFK warning shown");
+    
+    // Set 1-minute timer to auto-pause
+    afkWarningTimerRef.current = setTimeout(function() {
+      console.log("⏸️ Auto-pausing due to inactivity");
+      pauseTest();
+      setShowAfkWarning(false);
+    }, 60000); // 1 minute
+  }, 300000); // 5 minutes
+};
+
+// Stop AFK timer
+const stopAfkTimer = function() {
+  if (afkTimerRef.current) {
+    clearTimeout(afkTimerRef.current);
+    afkTimerRef.current = null;
+  }
+  if (afkWarningTimerRef.current) {
+    clearTimeout(afkWarningTimerRef.current);
+    afkWarningTimerRef.current = null;
+  }
+  setShowAfkWarning(false);
+};
+
+// Handle "Are you still there?" response
+const handleAfkResponse = function() {
+  setShowAfkWarning(false);
+  resetAfkTimer();
+  console.log("✅ User confirmed presence");
 };
 
 
@@ -227,6 +402,9 @@ const playQuestionOne = function()  {
 
 
   const handleClick = function(img, event) {
+    // Reset AFK timer on user interaction
+    resetAfkTimer();
+    
     if (questionType === "C") {
       // Get the image index (1-based)
       const imgIndex = images.indexOf(img) + 1;
@@ -321,6 +499,9 @@ const playQuestionOne = function()  {
   }
 
   const handleContinue = function(result) {
+    // Reset AFK timer on user interaction
+    resetAfkTimer();
+    
     const currentIdx = getCurrentQuestionIndex();
     
     // Track traffic light responses
@@ -340,7 +521,9 @@ const playQuestionOne = function()  {
     }
   };
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Recording controls
+  /*
   const startRecording = function() {
     if (!stream) return;
 
@@ -417,6 +600,7 @@ const playQuestionOne = function()  {
       startRecording();
     }, 50);
   };
+  */
 
   // =============================================================================
   // HELPER FUNCTIONS
@@ -463,6 +647,12 @@ const playQuestionOne = function()  {
   function loadQuestion(index) {
     const q = questions[index];
     if (!q) return;
+
+    // Mark question start timestamp for recording
+    // Skip question 1 here as it will be marked when voice identifier is confirmed
+    if ((permission || microphoneSkipped) && voiceIdentifierConfirmed && index > 0) {
+      SessionRecorder.markQuestionStart(q.query_number);
+    }
 
     setShowContinue(false);
     setClickedCorrect(false);
@@ -590,13 +780,7 @@ const playQuestionOne = function()  {
 
     // Start countdown for expression questions
     if (q.query_type !== "הבנה") {
-      // If microphone was skipped, show traffic lights immediately
-      if (microphoneSkipped) {
-        setShowContinue(true);
-      } else {
-        setCountdown(3);
-        setRecordingStopped(false);
-      }
+      setShowContinue(true);
     }
   }
 
@@ -608,9 +792,56 @@ const playQuestionOne = function()  {
 function completeSession() {
   setSessionCompleted(true);
   setImages([]);
+  
+  // If test is paused, unpause it first
+  if (isPaused) {
+    setIsPaused(false);
+  }
 
-  // Send current user/session data to backend
-  sendToBackend(idDigits, ageYears, ageMonths, "", "");
+  // Stop continuous session recording and send data to backend
+  if (sessionRecordingStarted && permission) {
+    SessionRecorder.stopContinuousRecording();
+    console.log("🛑 Stopped session recording, waiting for MP3 conversion...");
+    
+    // Poll until recording is ready, then send to backend
+    var pollAttempts = 0;
+    var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
+    
+    var checkRecordingReady = function() {
+      pollAttempts++;
+      
+      SessionRecorder.getRecordingAndText().then(function(data) {
+        if (data && data.recordingBlob) {
+          console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
+          const reader = new FileReader();
+          reader.onloadend = function() {
+            updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                            reader.result, data.timestampText); //MongoDB
+          };
+          reader.readAsDataURL(data.recordingBlob);
+        } else if (pollAttempts < maxAttempts) {
+          // Not ready yet, check again in 100ms
+          setTimeout(checkRecordingReady, 100);
+        } else {
+          // Timeout - send without recording
+          console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
+          updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                          null, null); //MongoDB
+        }
+      }).catch(function(err) {
+        console.error("❌ Error checking recording:", err);
+        updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                        null, null); //MongoDB
+      });
+    };
+    
+    // Start polling after a small initial delay
+    setTimeout(checkRecordingReady, 200);
+  } else {
+    // No recording, send immediately
+    updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+                    null, null); //MongoDB
+  }
 }
 
 
@@ -672,7 +903,9 @@ function completeSession() {
     };
   }, [ageConfirmed, questions, currentIndex, sessionCompleted]);
 
+  // OLD RECORDING SCHEME - COMMENTED OUT (kept for reference, may be added back)
   // Countdown effect
+  /*
   React.useEffect(
     function countdownEffect() {
       // Skip countdown if microphone was skipped
@@ -704,6 +937,7 @@ function completeSession() {
     },
     [recordingStopped]
   );
+  */
 
   // =============================================================================
   // RENDER
@@ -719,19 +953,51 @@ function completeSession() {
       { className: "progress-bar-container" },
       React.createElement(
         "div",
-        { className: "progress-bar" },
+        { style: { display: "flex", alignItems: "center", gap: "15px", width: "100%" } },
+        // Pause/Resume button on the left (only show during active test)
+        voiceIdentifierConfirmed && !sessionCompleted
+          ? React.createElement(
+              "button",
+              {
+                className: "pause-button",
+                onClick: isPaused ? resumeTest : pauseTest,
+                style: {
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  backgroundColor: isPaused ? "#4CAF50" : "#FF9800",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  flexShrink: 0,
+                  minWidth: "100px"
+                }
+              },
+              isPaused ? "▶️ Resume" : "⏸️ Pause"
+            )
+          : null,
+        // Progress bar and text in the remaining space
         React.createElement(
           "div",
-          { 
-            className: "progress-fill",
-            style: { width: progressPercentage + "%" }
-          }
+          { style: { flex: 1 } },
+          React.createElement(
+            "div",
+            { className: "progress-bar" },
+            React.createElement(
+              "div",
+              { 
+                className: "progress-fill",
+                style: { width: progressPercentage + "%" }
+              }
+            )
+          ),
+          React.createElement(
+            "div",
+            { className: "progress-text" },
+            currentIdx + " / " + totalQuestions + " questions answered"
+          )
         )
-      ),
-      React.createElement(
-        "div",
-        { className: "progress-text" },
-        currentIdx + " / " + totalQuestions + " questions answered"
       )
     );
   }
@@ -800,8 +1066,120 @@ function completeSession() {
     );
   }
 
+  if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed) {
+    return React.createElement(
+      "div",
+      { className: "voice-identifier-screen" },
+      React.createElement("h2", null, "Voice Identifier"),
+      permission && sessionRecordingStarted
+        ? React.createElement(
+            "div",
+            { 
+              style: {
+                backgroundColor: "#ffebee",
+                padding: "10px 20px",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px"
+              }
+            },
+            React.createElement("span", { style: { fontSize: "20px" } }, "🔴"),
+            React.createElement("span", { style: { fontWeight: "bold", color: "#c62828" } }, "Recording in Progress")
+          )
+        : null,
+      React.createElement("p", null, "Please read the following sentence out loud:"),
+      React.createElement(
+        "div",
+        { 
+          className: "hebrew-text",
+          style: {
+            fontSize: "24px",
+            fontWeight: "bold",
+            margin: "30px 0",
+            padding: "20px",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "8px",
+            direction: "rtl"
+          }
+        },
+        "בואו נתחיל את המשחק, וננסה לענות על תשובות באופן נכון"
+      ),
+      React.createElement("p", { style: { fontSize: "14px", color: "#666", fontStyle: "italic" } }, 
+        "After reading the sentence, click Continue to start the test"
+      ),
+      React.createElement(
+        "button",
+        { 
+          className: "continue-button",
+          onClick: confirmVoiceIdentifier,
+          style: {
+            padding: "12px 24px",
+            fontSize: "18px",
+            backgroundColor: "#4CAF50",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            marginTop: "20px"
+          }
+        },
+        "Continue"
+      )
+    );
+  }
+
   if (sessionCompleted) {
     const totalAnswered = correctAnswers + partialAnswers + wrongAnswers;
+    
+    // Download recording function
+    const downloadRecording = function() {
+      // Use synchronous version since we're in a synchronous context
+      const recordingUrl = SessionRecorder.getFinalRecordingUrlSync();
+      if (recordingUrl) {
+        const a = document.createElement("a");
+        a.href = recordingUrl;
+        // Get the file extension (.mp3)
+        const fileExt = SessionRecorder.getCurrentFileExtension();
+        a.download = "session_recording_" + idDigits + "_" + Date.now() + fileExt;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        console.log("📥 Downloaded session recording as MP3");
+      } else {
+        alert("No recording available to download");
+      }
+    };
+    
+    // Download timestamp file function
+    const downloadTimestamps = function() {
+      SessionRecorder.downloadTimestampFile(idDigits);
+    };
+    
+    // Download both files function
+    const downloadBoth = function() {
+      // Download recording first
+      const recordingUrl = SessionRecorder.getFinalRecordingUrlSync();
+      if (recordingUrl) {
+        const a = document.createElement("a");
+        a.href = recordingUrl;
+        const fileExt = SessionRecorder.getCurrentFileExtension();
+        a.download = "session_recording_" + idDigits + "_" + Date.now() + fileExt;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        console.log("📥 Downloaded session recording as MP3");
+      }
+      
+      // Download timestamps after a short delay to avoid browser blocking
+      setTimeout(function() {
+        SessionRecorder.downloadTimestampFile(idDigits);
+      }, 500);
+    };
+    
     return React.createElement(
       "div",
       { className: "session-complete" },
@@ -813,6 +1191,67 @@ function completeSession() {
       ),
       React.createElement("p", null, 
         "Total questions answered: " + totalAnswered + " / " + questions.length
+      ),
+      // Download buttons container
+      React.createElement(
+        "div",
+        { style: { marginTop: "20px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" } },
+        // Download both button (main action) - show if recording exists
+        sessionRecordingStarted
+          ? React.createElement(
+              "button",
+              {
+                style: {
+                  padding: "12px 24px",
+                  fontSize: "18px",
+                  backgroundColor: "#FF6B35",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                },
+                onClick: downloadBoth
+              },
+              "📦 Download Both (MP3 + Timestamps)"
+            )
+          : null,
+        // Download button for recording only - show if recording exists
+        sessionRecordingStarted
+          ? React.createElement(
+              "button",
+              {
+                style: {
+                  padding: "10px 20px",
+                  fontSize: "16px",
+                  backgroundColor: "#42ABC7",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer"
+                },
+                onClick: downloadRecording
+              },
+              "📥 Recording Only (MP3)"
+            )
+          : null,
+        // Download button for timestamps only - always show on completion screen
+        React.createElement(
+          "button",
+          {
+            style: {
+              padding: "10px 20px",
+              fontSize: "16px",
+              backgroundColor: "#4CAF50",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer"
+            },
+            onClick: downloadTimestamps
+          },
+          "📄 Timestamps Only"
+        )
       )
     );
   }
@@ -868,6 +1307,104 @@ function completeSession() {
           })
         )
         
+      : null,
+    // Paused overlay
+    isPaused
+      ? React.createElement(
+          "div",
+          {
+            className: "paused-overlay",
+            style: {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.8)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999
+            }
+          },
+          React.createElement("h1", { style: { color: "white", fontSize: "48px", marginBottom: "20px" } }, "⏸️ PAUSED"),
+          React.createElement("p", { style: { color: "white", fontSize: "20px", marginBottom: "30px" } }, 
+            "Test is paused. Recording stopped."
+          ),
+          React.createElement(
+            "button",
+            {
+              onClick: resumeTest,
+              style: {
+                padding: "15px 40px",
+                fontSize: "20px",
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold"
+              }
+            },
+            "▶️ Resume Test"
+          )
+        )
+      : null,
+    // AFK Warning popup
+    showAfkWarning && !isPaused
+      ? React.createElement(
+          "div",
+          {
+            className: "afk-warning-overlay",
+            style: {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9998
+            }
+          },
+          React.createElement(
+            "div",
+            {
+              style: {
+                backgroundColor: "white",
+                padding: "40px",
+                borderRadius: "12px",
+                textAlign: "center",
+                maxWidth: "400px"
+              }
+            },
+            React.createElement("h2", { style: { marginBottom: "20px", fontSize: "28px" } }, "⚠️ Are you still there?"),
+            React.createElement("p", { style: { marginBottom: "30px", fontSize: "18px", color: "#666" } }, 
+              "We haven't detected any activity for 5 minutes. The test will pause automatically in 1 minute if you don't respond."
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: handleAfkResponse,
+                style: {
+                  padding: "12px 30px",
+                  fontSize: "18px",
+                  backgroundColor: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }
+              },
+              "Yes, I'm here!"
+            )
+          )
+        )
       : null,
     React.createElement(ProgressBar),
     questionAudio
@@ -1063,35 +1600,36 @@ function completeSession() {
       : null,
 
     questionType === "E"
+      
       ? React.createElement(
           "div",
           { className: "expression-container" },
-          !microphoneSkipped && countdown > 0
-            ? React.createElement("h3", null, "Recording starts in " + countdown + "...")
-            : null,
-          !microphoneSkipped && recording
-            ? React.createElement(
-                "div",
-                { className: "rec-controls" },
-                !recPaused
-                  ? React.createElement("button", { className: "rec-btn pause", onClick: pauseRecording }, "Pause")
-                  : React.createElement("button", { className: "rec-btn resume", onClick: pauseRecording }, "Resume"),
-                React.createElement("button", { className: "rec-btn stop", onClick: stopRecording }, "Stop")
-              )
-            : null,
-          !microphoneSkipped && recordingStopped
-            ? React.createElement(
-                "div",
-                { className: "audio-replay" },
-                React.createElement("audio", { src: audioUrl, controls: true }),
-                React.createElement("div", { className: "rec-controls" },
-                  React.createElement("button", { className: "rec-btn redo", onClick: redoRecording }, "Redo recording")
-                )
-              )
-            : null,
-          microphoneSkipped
-            ? React.createElement("p", { className : "skippedText" }, "Recording skipped - please evaluate the response")
-            : null,
+          // !microphoneSkipped && countdown > 0
+          //   ? React.createElement("h3", null, "Recording starts in " + countdown + "...")
+          //   : null,
+          // !microphoneSkipped && recording
+          //   ? React.createElement(
+          //       "div",
+          //       { className: "rec-controls" },
+          //       !recPaused
+          //         ? React.createElement("button", { className: "rec-btn pause", onClick: pauseRecording }, "Pause")
+          //         : React.createElement("button", { className: "rec-btn resume", onClick: pauseRecording }, "Resume"),
+          //       React.createElement("button", { className: "rec-btn stop", onClick: stopRecording }, "Stop")
+          //     )
+          //   : null,
+          // !microphoneSkipped && recordingStopped
+          //   ? React.createElement(
+          //       "div",
+          //       { className: "audio-replay" },
+          //       React.createElement("audio", { src: audioUrl, controls: true }),
+          //       React.createElement("div", { className: "rec-controls" },
+          //         React.createElement("button", { className: "rec-btn redo", onClick: redoRecording }, "Redo recording")
+          //       )
+          //     )
+          //   : null,
+          // microphoneSkipped
+          //   ? React.createElement("p", { className : "skippedText" }, "Recording skipped - please evaluate the response")
+          //   : null,
           React.createElement(
             "div",
             { className: "images-container" },

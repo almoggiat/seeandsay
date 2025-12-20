@@ -25,6 +25,15 @@
   z-index: 1000;
 }
 
+.pause-button {
+  transition: all 0.2s ease;
+}
+
+.pause-button:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
 .progress-bar {
   width: 100%;
   height: 20px;
@@ -71,6 +80,69 @@
    border-radius: 12px;
    padding: 8px 14px;}
 
+/* Voice Identifier Screen */
+.voice-identifier-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.voice-identifier-screen h2 {
+  font-size: 28px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.voice-identifier-screen p {
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: #555;
+}
+
+.hebrew-text {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 30px 0;
+  padding: 20px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  direction: rtl;
+  line-height: 1.6;
+}
+
+/* Paused Overlay */
+.paused-overlay {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.paused-overlay button:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s;
+}
+
+/* AFK Warning Overlay */
+.afk-warning-overlay {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.afk-warning-overlay button:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s;
+  background-color: #45a049;
+}
 
 /* =========================================================
    QUESTION + IMAGES SECTION
