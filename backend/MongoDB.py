@@ -287,25 +287,6 @@ class SeeSayMongoStorage:
             return None
 
 
-    # def cleanup_old_snapshots(self, team_id, retention_days=RETENTION_DAYS):
-    #     """Clean up old snapshots based on retention policy"""
-    #     try:
-    #         from datetime import timedelta
-    #         cutoff_date = datetime.now() - timedelta(days=retention_days)
-    #
-    #         result = self.snapshots_collection.delete_many({
-    #             'team_id': team_id,
-    #             'timestamp': {'$lt': cutoff_date}
-    #         })
-    #
-    #         if result.deleted_count > 0:
-    #             logger.info(f"✅ Cleaned up {result.deleted_count} old snapshots for {team_id}")
-    #
-    #         return result.deleted_count
-    #
-    #     except Exception as e:
-    #         logger.error(f"❌ Error cleaning up snapshots for {team_id}: {e}")
-    #         return 0
 
 
 

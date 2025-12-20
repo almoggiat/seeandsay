@@ -106,9 +106,8 @@ class AddTestRequest(BaseModel):
     partly: Optional[int] = None
     wrong: Optional[int] = None
     audioFile64: str
-    timestamps: str
+    timestamps: str #### Change to Array
 
-## TEST
 
 
 # Routes
