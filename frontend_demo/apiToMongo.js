@@ -60,6 +60,7 @@ async function createUser(userId, userName) {
 //}
 
 // update user info with test results, audio base64, and timestamps
+// full_array --> is the new, full array of right and wrong
 async function updateUserTests(userId, ageYears, ageMonths,
                     full_array,correct, partly, wrong,
                     audioBase64, timestampText) {
@@ -102,7 +103,7 @@ async function updateUserTests(userId, ageYears, ageMonths,
 }
 
 
-// ADD TO apiToMongo.js --> after Almog makes clean project.
+// Speaker Verification API call
 async function verifySpeaker(userId, audioFile64) {
   const url = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
 
