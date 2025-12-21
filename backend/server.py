@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from typing import Optional
 
+from AI_Models_API import * ## NEW LINE
 
 # ------------------------------------------------------
 # Setup
@@ -102,11 +103,19 @@ class AddTestRequest(BaseModel):
     userId: int
     ageYears: int
     ageMonths: int
+    fullArray: list # Can be changed to List[int]
     correct: Optional[int] = None
     partly: Optional[int] = None
     wrong: Optional[int] = None
     audioFile64: str
-    timestamps: str #### Change to Array
+    timestamps: list
+
+class SpeakerVerificationRequest(BaseModel):
+    userId: int
+    audioFile64:str
+    # returns {"success": True, "parent_speaker": parent_speaker}
+
+
 
 
 
@@ -131,15 +140,19 @@ def create_user(user: CreateUserRequest):
 @app.post("/api/addTestToUser")
 def add_test(test: AddTestRequest):
     logger.warning(f"Received user test: {test.userId}")
-    # audioFile_after_base64 =
+
+    updated_transcription = speaker_verification(test.audioFile64)
+
     success = storage.add_test_to_user(
         user_id=test.userId,
         age_years=test.ageYears,
         age_months=test.ageMonths,
+        full_array=test.fullArray,
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,
         audio_file_base64=test.audioFile64,
+        updated_transcription=updated_transcription,
         timestamps=test.timestamps
     )
     if not success:
@@ -147,11 +160,77 @@ def add_test(test: AddTestRequest):
     user = storage.get_user_config(test.userId)
     return {"success": True, "user": user}
 
-@app.get("/api/getUser/{user_id}")
-def get_user(user_id: str):
-    user = storage.get_user_config(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"success": True, "user": user}
+
+
+
+@app.post("/api/VerifySpeaker")
+def verify_speaker(data: SpeakerVerificationRequest):
+    logger.warning(f"Received speaker verification request for user: {data.userId}")
+
+    verification_result= speaker_verification(data.audioFile64)
+
+
+    if not verification_result["success"]:
+        raise HTTPException(
+            status_code=404,
+            detail="Unable to run backend verification"
+        )
+    return {
+        "success": True,
+        "parent_speaker": verification_result["parent_speaker"]
+    }
+
+
+
+# # ADD TO apiToMongo.js --> after Almog makes clean project.
+# async function verifySpeaker(userId, audioFile64) {
+#   const url = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
+#
+#   try {
+#     const response = await fetch(url, {
+#       method: "POST",
+#       headers: { "Content-Type": "application/json" },
+#       body: JSON.stringify({
+#         userId: userId,
+#         audioFile64: audioFile64
+#       }),
+#     });
+#
+#     // Backend returned an error → verification failed
+#     if (!response.ok) {
+#       const errorText = await response.text();
+#       throw new Error(`Verification failed (${response.status}): ${errorText}`);
+#     }
+#
+#     // Wait for backend JSON response
+#     const result = await response.json();
+#
+#     if (result.success === true) {
+#       console.log("✅ Speaker verification successful");
+#       console.log("👤 Parent speaker:", result.parent_speaker);
+#       return {
+#         success: true,
+#         parentSpeaker: result.parent_speaker
+#       };
+#     } else {
+#       console.warn("⚠️ Verification returned success=false");
+#       return { success: false };
+#     }
+#
+#   } catch (err) {
+#     console.error("❌ Speaker verification error:", err);
+#     return { success: false, error: err.message };
+#   }
+# }
+
+
+
+# Not In Use
+# @app.get("/api/getUser/{user_id}")
+# def get_user(user_id: str):
+#     user = storage.get_user_config(user_id)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     return {"success": True, "user": user}
 
 

@@ -169,7 +169,10 @@ class SeeSayMongoStorage:
             return False
 
 
-    def add_test_to_user(self, user_id, age_years, age_months,correct, partly, wrong, audio_file_base64, timestamps):
+    def add_test_to_user(self,
+                         user_id,age_years,age_months,
+                         full_array,correct, partly, wrong,
+                         audio_file_base64,updated_transcription, timestamps):
         """
         Adds a new exam record to the 'tests' array of a specific user.
         Time_took --> how long it took to finish
@@ -183,10 +186,12 @@ class SeeSayMongoStorage:
                 'dateFinished': datetime.now(),
                 'ageYears': age_years,
                 'ageMonths': age_months,
+                'fullArray': full_array,
                 'correct': correct,
                 'partly': partly,
                 'wrong': wrong,
                 'audioFile64': audio_file_base64,
+                'transcription': updated_transcription,
                 'timestamps': timestamps
             }
 

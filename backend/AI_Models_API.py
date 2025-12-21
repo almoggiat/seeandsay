@@ -9,8 +9,9 @@ import os
 from dotenv import load_dotenv
 import logging
 import re
+import base64
 
-from server import *
+#from server import *
 
 
 load_dotenv()
@@ -48,6 +49,22 @@ openAI_client = OpenAI(api_key= OPENAI_LINKCARRING_API_KEY)
 #
 #     return result
 
+def get_audio_data_from_64base(base64_audio):
+    if not base64_audio:
+        raise ValueError(f"No 'base64_audio' (base64) found.")
+
+    # Decode base64 to bytes
+    try:
+        audio_bytes = base64.b64decode(base64_audio)
+    except Exception as e:
+        raise ValueError(f"Error decoding base64 audio: {e}")
+
+    # # Save the file
+    # with open(output_path, "wb") as f:
+    #     f.write(audio_bytes)
+    # f.close()
+
+    return audio_bytes
 
 # speaker_sensitivity can be changed*
 def speechmatics_runner(audioFilePath):
@@ -96,7 +113,14 @@ def speechmatics_runner(audioFilePath):
 def speaker_recognition(transcription):
     """
     Identify the speaker - parent or child.
-    If more than 2 speakers exist, do nothing and return MORE_THAN_TWO = 1.
+
+    Returns a dict:
+        {
+            "updated_transcription": str,
+            "two_speakers": bool,
+            "success": bool,
+            "parent_speaker": str | None
+        }
     """
 
     import re
@@ -107,34 +131,58 @@ def speaker_recognition(transcription):
     pattern = r"(SPEAKER:\s*S[0-9]+)(.*?)(?=SPEAKER:\s*S[0-9]+|$)"
     blocks = re.findall(pattern, transcription, flags=re.DOTALL)
 
-    speakers = {speaker for speaker, _ in blocks}
+    speakers = list({speaker for speaker, _ in blocks})
+
+    result = {
+        "updated_transcription": transcription,
+        "two_speakers": False,
+        "success": False,
+        "parent_speaker": None
+    }
+
+    # More than two speakers
     if len(speakers) > 2:
-        # More than two speakers → return transcription and flag
-        return transcription, 1
+        return result
 
-    parent_speaker = None
+    # Exactly two speakers
+    result["two_speakers"] = True
 
-    # Find which speaker contains any keyword
+    # Identify parent
     for speaker, text in blocks:
         text_lower = text.lower()
         if any(k.lower() in text_lower for k in KEY_WORDS):
-            parent_speaker = speaker
+            result["parent_speaker"] = speaker
             break
 
-    # If no keyword found
-    if parent_speaker is None:
-        return transcription, 0  # no change but also not more than two
+    # No keyword → failed recognition
+    if result["parent_speaker"] is None:
+        return result
 
-    # Determine child speaker
-    # handle S1/S2 or any order dynamically
-    speakers = list(speakers)
-    child_speaker = [s for s in speakers if s != parent_speaker][0]
+    result["success"] = True
 
-    # Replace in full transcription
-    updated = transcription.replace(parent_speaker, "parent:")
+    # Identify child
+    child_speaker = next(
+        s for s in speakers if s != result["parent_speaker"]
+    )
+
+    # Replace labels
+    updated = transcription
+    updated = updated.replace(result["parent_speaker"], "parent:")
     updated = updated.replace(child_speaker, "child:")
 
-    return updated, 0
+    result["updated_transcription"] = updated
+
+    return result
+
+
+
+
+def speaker_verification(base64_audio):
+    audio_bytes = get_audio_data_from_64base(base64_audio)
+    transcription = speechmatics_runner(audio_bytes)
+    result = speaker_recognition(transcription)
+
+    return result["success"],result["parent_speaker"]
 
 
 
