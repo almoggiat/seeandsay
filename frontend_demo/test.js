@@ -16,6 +16,9 @@ function Test({ allQuestions }) {
   const [partialAnswers, setPartialAnswers] = usePersistentState("partialAnswers", 0);
   const [wrongAnswers, setWrongAnswers] = usePersistentState("wrongAnswers", 0);
   const [devMode, setDevMode] = usePersistentState("devMode", false)
+  
+  // Track full array of question results: [{questionNumber, result}, ...]
+  const [questionResults, setQuestionResults] = usePersistentState("questionResults", []);
 
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
@@ -26,6 +29,7 @@ function Test({ allQuestions }) {
   const [readingValidated, setReadingValidated] = usePersistentState("readingValidated", false);
   const [readingValidationResult, setReadingValidationResult] = usePersistentState("readingValidationResult", null); // null = no connection, true = valid, false = invalid
   const [readingRecordingBlob, setReadingRecordingBlob] = usePersistentState("readingRecordingBlob", null);
+  const [readingValidationInProgress, setReadingValidationInProgress] = React.useState(false);
   
 
 
@@ -228,18 +232,33 @@ React.useEffect(() => {
               const audioBase64 = reader.result;
               setReadingRecordingBlob(audioBase64);
               
+              // Show loading screen while waiting for backend
+              setReadingValidationInProgress(true);
+              
               // Send to backend for validation
               const validationResult = await verifySpeaker(idDigits,audioBase64);
-              setReadingValidationResult(validationResult);
               
-              if (validationResult === true) {
-                // Valid - show continue button
+              // Hide loading screen
+              setReadingValidationInProgress(false);
+              
+              // verifySpeaker can return:
+              // - null: no backend connection (for testing)
+              // - {success: true, parentSpeaker: ...}: valid
+              // - {success: false, error: ...}: invalid
+              // Convert to boolean/null format expected by the UI
+              if (validationResult === null) {
+                // No connection - show options
+                setReadingValidationResult(null);
+                setReadingValidated(false);
+              } else if (validationResult && validationResult.success === true) {
+                setReadingValidationResult(true);
                 setReadingValidated(true);
-              } else if (validationResult === false) {
-                // Invalid - will restart recording
+              } else if (validationResult && validationResult.success === false) {
+                setReadingValidationResult(false);
                 setReadingValidated(false);
               } else {
-                // No connection - show options
+                // Fallback: treat as no connection
+                setReadingValidationResult(null);
                 setReadingValidated(false);
               }
             };
@@ -612,6 +631,7 @@ const playQuestionOne = function()  {
     resetAfkTimer();
     
     const currentIdx = getCurrentQuestionIndex();
+    const currentQuestion = questions[currentIdx];
     
     // Track traffic light responses
     if (result === "success") {
@@ -620,6 +640,26 @@ const playQuestionOne = function()  {
       setPartialAnswers(partialAnswers + 1);
     } else if (result === "failure") {
       setWrongAnswers(wrongAnswers + 1);
+    }
+    
+    // Track question result in full array
+    if (currentQuestion) {
+      const questionNumber = currentQuestion.query_number;
+      // Map result to string format
+      let resultString = "";
+      if (result === "success") {
+        resultString = "correct";
+      } else if (result === "partial") {
+        resultString = "partly";
+      } else if (result === "failure") {
+        resultString = "wrong";
+      }
+      
+      // Add to question results array
+      setQuestionResults([...questionResults, {
+        questionNumber: questionNumber,
+        result: resultString
+      }]);
     }
     
     // Simply move to next question or complete session
@@ -635,6 +675,20 @@ const playQuestionOne = function()  {
   // =============================================================================
   // HELPER FUNCTIONS
   // =============================================================================
+
+  // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
+  function formatQuestionResultsArray() {
+    if (questionResults.length === 0) {
+      return "[]";
+    }
+    
+    const formattedTuples = questionResults.map(function(item) {
+      const questionNum = parseInt(item.questionNumber, 10);
+      return "(" + questionNum + ",\"" + item.result + "\")";
+    });
+    
+    return "[" + formattedTuples.join(",") + "]";
+  }
 
   function loadAllQuestions() {
     const ageGroupOrder = ["2:00-2:06", "2:07-3:00", "3:00-4:00", "4:00-5:00", "5:00-6:00"];
@@ -850,7 +904,8 @@ function completeSession() {
           console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
           const reader = new FileReader();
           reader.onloadend = function() {
-            updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+            const fullArray = formatQuestionResultsArray();
+            updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                             reader.result, data.timestampText); //MongoDB
           };
           reader.readAsDataURL(data.recordingBlob);
@@ -860,12 +915,14 @@ function completeSession() {
         } else {
           // Timeout - send without recording
           console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
-          updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+          const fullArray = formatQuestionResultsArray();
+          updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
       }).catch(function(err) {
         console.error("❌ Error checking recording:", err);
-        updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+        const fullArray = formatQuestionResultsArray();
+        updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
     };
@@ -874,7 +931,8 @@ function completeSession() {
     setTimeout(checkRecordingReady, 200);
   } else {
     // No recording, send immediately
-    updateUserTests(idDigits, ageYears, ageMonths, correctAnswers, partialAnswers, wrongAnswers,
+    const fullArray = formatQuestionResultsArray();
+    updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                     null, null); //MongoDB
   }
 }
@@ -1067,6 +1125,42 @@ function completeSession() {
   }
 
   if ((permission || microphoneSkipped) && !voiceIdentifierConfirmed) {
+    // Show loading screen while validating
+    if (readingValidationInProgress) {
+      return React.createElement(
+        "div",
+        { className: "voice-identifier-screen" },
+        React.createElement("h2", null, "Validating Reading..."),
+        React.createElement("p", { style: { fontSize: "18px", color: "#666", margin: "30px 0" } }, 
+          "Please wait while we verify your reading."
+        ),
+        React.createElement(
+          "div",
+          { 
+            style: {
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              marginTop: "20px"
+            }
+          },
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: "40px",
+                height: "40px",
+                border: "4px solid #f3f3f3",
+                borderTop: "4px solid #4CAF50",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }
+            }
+          )
+        )
+      );
+    }
+    
     // Show validation result screen if validation has been attempted
     if (readingValidationResult !== null || readingRecordingBlob !== null) {
       if (readingValidationResult === true) {
@@ -1108,23 +1202,47 @@ function completeSession() {
             "❌ Please try reading the sentence again."
           ),
           React.createElement(
-            "button",
-            { 
-              className: "continue-button",
-              onClick: handleReadingValidationRetry,
-              style: {
-                padding: "12px 24px",
-                fontSize: "18px",
-                backgroundColor: "#FF9800",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                marginTop: "20px"
-              }
-            },
-            "Try Again"
+            "div",
+            { style: { display: "flex", gap: "10px", justifyContent: "center", marginTop: "20px", flexWrap: "wrap" } },
+            React.createElement(
+              "button",
+              { 
+                className: "continue-button",
+                onClick: handleReadingValidationRetry,
+                style: {
+                  padding: "12px 24px",
+                  fontSize: "18px",
+                  backgroundColor: "#FF9800",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }
+              },
+              "Try Again"
+            ),
+            // Show skip button in developer mode only
+            devMode
+              ? React.createElement(
+                  "button",
+                  { 
+                    className: "continue-button",
+                    onClick: handleReadingValidationContinue,
+                    style: {
+                      padding: "12px 24px",
+                      fontSize: "18px",
+                      backgroundColor: "#9E9E9E",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: "bold"
+                    }
+                  },
+                  "Skip (Dev Mode)"
+                )
+              : null
           )
         );
       } else {

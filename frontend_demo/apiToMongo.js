@@ -81,6 +81,7 @@ async function updateUserTests(userId, ageYears, ageMonths,
         userId: userId,
         ageYears: ageYears,
         ageMonths: ageMonths,
+        full_array: full_array,          // Format: [(1,"correct"),(2,"partly"),(3,"wrong")]
         correct: correct,
         partly: partly,
         wrong: wrong,
@@ -140,6 +141,7 @@ async function verifySpeaker(userId, audioFile64) {
 
   } catch (err) {
     console.error("❌ Speaker verification error:", err);
-    return { success: false, error: err.message };
+    // Return null on network errors to allow testing without backend connection
+    return null;
   }
 }

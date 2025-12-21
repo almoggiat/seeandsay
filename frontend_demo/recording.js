@@ -380,7 +380,21 @@ const SessionRecorder = (function() {
     }
     
     const currentTime = Date.now();
-    const elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
+    let elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
+    
+    // Check if this is the first question 1 marking - ensure it's always at 0 seconds
+    // Check if there are any existing question 1 timestamps (handle both string and number)
+    const hasQuestion1 = questionTimestamps.some(function(item) {
+      const itemNum = String(item.questionNumber);
+      const currentNum = String(questionNumber);
+      return itemNum === "1" || itemNum === currentNum;
+    });
+    
+    // If this is question 1 and it's the first time marking it, set to 0
+    const questionNumStr = String(questionNumber);
+    if (questionNumStr === "1" && !hasQuestion1) {
+      elapsedMs = 0;
+    }
     
     questionTimestamps.push({
       questionNumber: questionNumber,
@@ -402,6 +416,7 @@ const SessionRecorder = (function() {
   }
 
   // Generate timestamp text file content
+  // Returns format: [(1,0),(2,65),(3,127)] - Python tuple style
   function generateTimestampText() {
     // Try to load from localStorage if not in memory
     if (questionTimestamps.length === 0) {
@@ -424,13 +439,14 @@ const SessionRecorder = (function() {
       return item.questionNumber !== "PAUSED" && item.questionNumber !== "RESUMED";
     });
     
-    // Convert to array of tuples: [question_number, time_in_seconds]
-    const timestampArray = questionEntries.map(function(item) {
+    // Convert to Python tuple format: [(1,0),(2,65),(3,127)]
+    const timestampTuples = questionEntries.map(function(item) {
       const timeInSeconds = Math.floor(item.timestamp / 1000); // Convert ms to seconds, round down
-      return [parseInt(item.questionNumber, 10), timeInSeconds];
+      const questionNum = parseInt(item.questionNumber, 10);
+      return "(" + questionNum + "," + timeInSeconds + ")";
     });
     
-    return JSON.stringify(timestampArray);
+    return "[" + timestampTuples.join(",") + "]";
   }
 
   // Download timestamp text file
