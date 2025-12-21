@@ -27,45 +27,48 @@ async function createUser(userId, userName) {
   }
 }
 
-// validate reading recording with backend
-async function validateReadingRecording(audioBase64) {
-  // For now, automatically act as if there is no backend connection
-  // This will be replaced with actual backend call later
-  return null; // null means no connection
-  
-  // When backend is ready, uncomment and modify this:
-  /*
-  const url = "https://seeandsay-backend.onrender.com/api/validateReading";
-  
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        audioFile64: audioBase64
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Server responded with status ${response.status}`);
-    }
-    
-    const result = await response.json();
-    return result.valid === true; // true or false
-  } catch (err) {
-    console.error("❌ Failed to validate reading:", err);
-    return null; // null means no connection
-  }
-  */
-}
+//// validate reading recording with backend
+//async function validateReadingRecording(audioBase64) {
+//  // For now, automatically act as if there is no backend connection
+//  // This will be replaced with actual backend call later
+//  return null; // null means no connection
+//
+//  // When backend is ready, uncomment and modify this:
+//  /*
+//  const url = "https://seeandsay-backend.onrender.com/api/validateReading";
+//
+//  try {
+//    const response = await fetch(url, {
+//      method: "POST",
+//      headers: { "Content-Type": "application/json" },
+//      body: JSON.stringify({
+//        audioFile64: audioBase64
+//      }),
+//    });
+//
+//    if (!response.ok) {
+//      throw new Error(`Server responded with status ${response.status}`);
+//    }
+//
+//    const result = await response.json();
+//    return result.valid === true; // true or false
+//  } catch (err) {
+//    console.error("❌ Failed to validate reading:", err);
+//    return null; // null means no connection
+//  }
+//  */
+//}
 
 // update user info with test results, audio base64, and timestamps
-async function updateUserTests(userId, ageYears, ageMonths, correct, partly, wrong, audioBase64, timestampText) {
+async function updateUserTests(userId, ageYears, ageMonths,
+                    full_array,correct, partly, wrong,
+                    audioBase64, timestampText) {
   const url = "https://seeandsay-backend.onrender.com/api/addTestToUser";
 
   try {
     console.log("📤 Uploading test data to MongoDB...");
     console.log("   User ID:", userId);
+    console.log("   Array Results:", full_array);
     console.log("   Results:", correct, "correct,", partly, "partial,", wrong, "wrong");
     console.log("   Audio:", audioBase64 ? "Present (" + (audioBase64.length / 1024).toFixed(2) + " KB base64)" : "None");
     console.log("   Timestamps:", timestampText ? "Present" : "None");
@@ -95,5 +98,47 @@ async function updateUserTests(userId, ageYears, ageMonths, correct, partly, wro
   } catch (err) {
     console.error("❌ Failed to upload test data:", err);
     return null;
+  }
+}
+
+
+// ADD TO apiToMongo.js --> after Almog makes clean project.
+async function verifySpeaker(userId, audioFile64) {
+  const url = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: userId,
+        audioFile64: audioFile64
+      }),
+    });
+
+    // Backend returned an error → verification failed
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Verification failed (${response.status}): ${errorText}`);
+    }
+
+    // Wait for backend JSON response
+    const result = await response.json();
+
+    if (result.success === true) {
+      console.log("✅ Speaker verification successful");
+      console.log("👤 Parent speaker:", result.parent_speaker);
+      return {
+        success: true,
+        parentSpeaker: result.parent_speaker
+      };
+    } else {
+      console.warn("⚠️ Verification returned success=false");
+      return { success: false };
+    }
+
+  } catch (err) {
+    console.error("❌ Speaker verification error:", err);
+    return { success: false, error: err.message };
   }
 }

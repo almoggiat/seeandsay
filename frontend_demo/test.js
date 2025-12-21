@@ -229,7 +229,7 @@ React.useEffect(() => {
               setReadingRecordingBlob(audioBase64);
               
               // Send to backend for validation
-              const validationResult = await validateReadingRecording(audioBase64);
+              const validationResult = await verifySpeaker(idDigits,audioBase64);
               setReadingValidationResult(validationResult);
               
               if (validationResult === true) {

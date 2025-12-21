@@ -182,46 +182,7 @@ def verify_speaker(data: SpeakerVerificationRequest):
 
 
 
-# # ADD TO apiToMongo.js --> after Almog makes clean project.
-# async function verifySpeaker(userId, audioFile64) {
-#   const url = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
-#
-#   try {
-#     const response = await fetch(url, {
-#       method: "POST",
-#       headers: { "Content-Type": "application/json" },
-#       body: JSON.stringify({
-#         userId: userId,
-#         audioFile64: audioFile64
-#       }),
-#     });
-#
-#     // Backend returned an error → verification failed
-#     if (!response.ok) {
-#       const errorText = await response.text();
-#       throw new Error(`Verification failed (${response.status}): ${errorText}`);
-#     }
-#
-#     // Wait for backend JSON response
-#     const result = await response.json();
-#
-#     if (result.success === true) {
-#       console.log("✅ Speaker verification successful");
-#       console.log("👤 Parent speaker:", result.parent_speaker);
-#       return {
-#         success: true,
-#         parentSpeaker: result.parent_speaker
-#       };
-#     } else {
-#       console.warn("⚠️ Verification returned success=false");
-#       return { success: false };
-#     }
-#
-#   } catch (err) {
-#     console.error("❌ Speaker verification error:", err);
-#     return { success: false, error: err.message };
-#   }
-# }
+
 
 
 
