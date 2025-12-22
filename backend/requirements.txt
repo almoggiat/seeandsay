@@ -6,5 +6,5 @@ certifi
 pydantic
 openai
 httpx
-speechmatics>=2.0.0
+speechmatics
 
