@@ -7,6 +7,7 @@ from httpx import HTTPStatusError
 
 import os
 from dotenv import load_dotenv
+import tempfile
 import logging
 import re
 import base64
@@ -49,7 +50,7 @@ openAI_client = OpenAI(api_key= OPENAI_LINKCARRING_API_KEY)
 #
 #     return result
 
-def get_audio_data_from_64base(base64_audio):
+def decode_base64_to_bytes(base64_audio):
     if not base64_audio:
         raise ValueError(f"No 'base64_audio' (base64) found.")
 
@@ -66,7 +67,7 @@ def get_audio_data_from_64base(base64_audio):
 
     return audio_bytes
 
-# speaker_sensitivity can be changed*
+
 def speechmatics_runner(audioFilePath):
     LANGUAGE = "he"
     settings = ConnectionSettings(
@@ -108,6 +109,50 @@ def speechmatics_runner(audioFilePath):
                 raise e
 
     return transcript
+
+
+# speaker_sensitivity can be changed*
+def speechmatics_runner_from_bytes(audio_bytes, suffix=".wav"):
+    LANGUAGE = "he"
+
+    settings = ConnectionSettings(
+        url="https://asr.api.speechmatics.com/v2",
+        auth_token=SPEECHMATICS_API_KEY,
+    )
+
+    conf = {
+        "type": "transcription",
+        "transcription_config": {
+            "language": LANGUAGE,
+            "operating_point": "enhanced",
+            "diarization": "speaker",
+            "speaker_diarization_config": {
+                "speaker_sensitivity": 0.3,
+                "prefer_current_speaker": True,
+                "get_speakers": True,
+            },
+            "enable_entities": False,
+        },
+    }
+
+    # Temporary file exists ONLY during this function
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+        tmp.write(audio_bytes)
+        tmp.flush()  # ensure data is written
+
+        with BatchClient(settings) as client:
+            job_id = client.submit_job(
+                audio=tmp.name,
+                transcription_config=conf,
+            )
+
+            transcript = client.wait_for_completion(
+                job_id, transcription_format="txt"
+            )
+
+    # temp file is already deleted here
+    return transcript
+
 
 
 def speaker_recognition(transcription):
@@ -178,8 +223,8 @@ def speaker_recognition(transcription):
 
 
 def speaker_verification(base64_audio):
-    audio_bytes = get_audio_data_from_64base(base64_audio)
-    transcription = speechmatics_runner(audio_bytes)
+    audio_bytes = decode_base64_to_bytes(base64_audio)
+    transcription = speechmatics_runner_from_bytes(audio_bytes)
     result = speaker_recognition(transcription)
 
     return result["success"],result["parent_speaker"]
@@ -189,16 +234,16 @@ def speaker_verification(base64_audio):
 if __name__ == "__main__":
     print("This is main function of AI_Models_API")
 
-    audio_file_path = "backend/audio_tom.mp3"
-    trans = speechmatics_runner(audio_file_path)
-    with open("backend/transcription.txt", "w") as f:
-        f.write(trans)
-    f.close()
-
-    trans_updated,MORE_THEN_TWO_SPEAKERS = speaker_recognition(trans)
-    with open("backend/transcription_updated.txt", "w") as f:
-        f.write(trans_updated)
-    f.close()
+    # audio_file_path = "backend/audio_tom.mp3"
+    # trans = speechmatics_runner(audio_file_path)
+    # with open("backend/transcription.txt", "w") as f:
+    #     f.write(trans)
+    # f.close()
+    #
+    # trans_updated,MORE_THEN_TWO_SPEAKERS = speaker_recognition(trans)
+    # with open("backend/transcription_updated.txt", "w") as f:
+    #     f.write(trans_updated)
+    # f.close()
 
     # test_prompt = """
     # You clever teaching assistant, give me 2 questions in {user_input}:
