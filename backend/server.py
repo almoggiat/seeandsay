@@ -165,20 +165,25 @@ def add_test(test: AddTestRequest):
 
 @app.post("/api/VerifySpeaker")
 def verify_speaker(data: SpeakerVerificationRequest):
-    logger.warning(f"Received speaker verification request for user: {data.userId}")
+    logger.warning(
+        f"Received speaker verification request for user: {data.userId}"
+    )
 
-    verification_result= speaker_verification(data.audioFile64)
+    try:
+        verification_result = speaker_verification(data.audioFile64)
 
+        return {
+            "success": verification_result["success"],
+            "parent_speaker": verification_result["parent_speaker"]
+        }
 
-    if not verification_result["success"]:
+    except Exception:
+        logger.error("Unexpected error during speaker verification")
         raise HTTPException(
-            status_code=404,
-            detail="Unable to run backend verification"
+            status_code=500,
+            detail="Internal server error"
         )
-    return {
-        "success": True,
-        "parent_speaker": verification_result["parent_speaker"]
-    }
+
 
 
 
