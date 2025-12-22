@@ -227,7 +227,7 @@ def speaker_verification(base64_audio):
     transcription = speechmatics_runner_from_bytes(audio_bytes)
     result = speaker_recognition(transcription)
 
-    return result["success"],result["parent_speaker"]
+    return result
 
 
 
