@@ -1,55 +1,70 @@
 function Help() {
   return (
     <div className="content-area">
-      <h1>How to Use This App</h1>
-      <p>
-        Welcome! This app is designed to guide you through interactive questions
-        where you respond by selecting images and tracking your progress. Here’s
-        how to navigate and use the interface:
-      </p>
+      <div className="help-layout">
+        <header className="help-hero">
+          <span className="kicker">עזרה מהירה</span>
+          <h1>כל מה שצריך כדי להוביל מפגש למידה מוצלח</h1>
+          <p>
+            אספנו עבורכם את ההנחיות והתובנות החשובות מכל מסך. עצרו לרגע לפני תחילת המפגש כדי
+            לוודא שכל הצעדים הבאים ברורים ונוחים.
+          </p>
+        </header>
 
-      <h2>1. Answering Questions</h2>
-      <ul>
-        <li>Read the question displayed at the top of the screen.</li>
-        <li>Look at the images shown below and click the one that best answers the question.</li>
-        <li>If your choice is correct, a small fireworks effect will appear above the image.</li>
-      </ul>
+        <div className="help-grid">
+          <article className="help-card">
+            <h2>לפני שמתחילים</h2>
+            <ul className="help-list">
+              <li>קבעו עם הילד מקום שקט ונעים עם תאורה טובה.</li>
+              <li>בדקו שהמיקרופון פועל – אפשר תמיד לדלג אם הילד אינו מוכן.</li>
+              <li>הכינו אוזניות או רמקולים איכותיים לתקשורת צלולה.</li>
+            </ul>
+          </article>
 
-      <h2>2. Traffic Light Buttons</h2>
-      <ul>
-        <li><strong>Green</strong> – Mark a question as answered correctly and confidently.</li>
-        <li><strong>Orange</strong> – Mark if you’re unsure or want to revisit the question later.</li>
-        <li><strong>Red</strong> – Mark a question as incorrect or that you need more practice.</li>
-      </ul>
+          <article className="help-card">
+            <h2>מהלך שאלה</h2>
+            <ul className="help-list">
+              <li>קראו בקול את השאלה והקשיבו לתגובה של הילד.</li>
+              <li>בחרו יחד את התמונה הנכונה – האפקט החגיגי יעיד על הצלחה.</li>
+              <li>
+                תוכלו לבחור מספר תשובות או סדר הופעה כאשר השאלה דורשת זאת. עוקבים אחר
+                ההנחיות שמופיעות על המסך.
+              </li>
+            </ul>
+          </article>
 
-      <h2>3. Navigation Bar</h2>
-      <p>
-        At the bottom of the screen, you’ll find the navigation bar. Use it to move between
-        different sections of the app. The active section is highlighted in blue.
-      </p>
+          <article className="help-card">
+            <h2>רמזור ההערכה</h2>
+            <ul className="help-list">
+              <li>
+                <strong>ירוק</strong> – הילד שולט במשימה ובטוח בעצמו.
+              </li>
+              <li>
+                <strong>כתום</strong> – שווה לחזור שוב במפגש הבא.
+              </li>
+              <li>
+                <strong>אדום</strong> – מומלץ לעצור, להסביר מחדש ולנסות ניסוח אחר.
+              </li>
+            </ul>
+          </article>
 
-      <h2>4. Resetting Progress</h2>
-      <p>
-        A red “Reset” button is located in the bottom-right corner. Click it to clear your progress
-        and start over from the beginning.
-      </p>
+          <article className="help-card">
+            <h2>טיפים להקלטה</h2>
+            <ul className="help-list">
+              <li>עזרו לילד לדבר מול המסך והזכירו לו לדבר בקול ברור.</li>
+              <li>אם הילד מסתייג, לחצו על "דלג" כדי להמשיך בנוחות.</li>
+              <li>ניתן להאזין להקלטות בהמשך למעקב והתייעצות עם הצוות המקצועי.</li>
+            </ul>
+          </article>
+        </div>
 
-      <h2>5. Age Input Screen</h2>
-      <p>
-        When prompted, enter your age to make sure the experience is tailored for you.
-        If the input is invalid, you’ll see a red error message.
-      </p>
-
-      <h2>Tips</h2>
-      <ul>
-        <li>Hover over buttons for visual feedback.</li>
-        <li>Use the traffic light system to track your confidence as you go.</li>
-        <li>You can return to this Help page anytime from the navigation bar.</li>
-      </ul>
-
-      <p style={{ marginTop: "20px", fontWeight: "bold" }}>
-        That’s it — you’re ready to start!
-      </p>
+        <div className="help-callout">
+          <span>צריכים התחלה חדשה? לחצו על כפתור האיפוס האדום בפינה.</span>
+          <span className="stat-chip" data-tone="warning">
+            מוחק את כל ההתקדמות הקודמת
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

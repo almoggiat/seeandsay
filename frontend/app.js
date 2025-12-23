@@ -32,11 +32,11 @@ function App() {
     Papa.parse("resources/query_database.csv", {
       download: true,
       header: true,
-      complete: function(res) {
+      complete: function (res) {
         const questions = res.data || [];
         setAllQuestions(questions);
         setCsvLoaded(true);
-        
+
         // Start loading ALL images immediately (no priority yet)
         ImageLoader.startLoading(questions, []);
       },
@@ -67,7 +67,16 @@ function App() {
 
   let content;
   if (!csvLoaded) {
-    content = React.createElement("div", null, "Loading...");
+    content = React.createElement(
+      "div",
+      { className: "surface-card", style: { textAlign: "center" } },
+      React.createElement("div", { className: "kicker" }, "רגע אחד"),
+      React.createElement(
+        "p",
+        { className: "muted" },
+        "אנחנו טוענים את כל השאלות והמשחקים בשבילכם."
+      )
+    );
   } else if (page === "test") {
     content = React.createElement(Test, { allQuestions: allQuestions });
   } else if (page === "help") {
@@ -87,7 +96,7 @@ function App() {
         className: "reset-button",
         onClick: resetAll,
       },
-      "Reset"
+      "איפוס"
     )
   );
 }
