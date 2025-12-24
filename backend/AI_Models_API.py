@@ -68,50 +68,7 @@ def decode_base64_to_bytes(base64_audio):
     return audio_bytes
 
 
-def speechmatics_runner(audioFilePath):
-    LANGUAGE = "he"
-    settings = ConnectionSettings(
-        url="https://asr.api.speechmatics.com/v2",
-        auth_token=SPEECHMATICS_API_KEY,
-    )
-    conf = {"type": "transcription",
-            "transcription_config": {"language": LANGUAGE,
-                                     "operating_point": "enhanced",
-                                     "diarization": "speaker",
-                                     "speaker_diarization_config": {
-                                         "speaker_sensitivity": 0.3,  # LOWER = FEWER speakers detected
-                                         "prefer_current_speaker": True,
-                                         "get_speakers": True
-                                     },
-                                     "enable_entities": False}}
 
-    with BatchClient(settings) as client:
-        try:
-            job_id = client.submit_job(
-                audio=audioFilePath,
-                transcription_config=conf,
-            )
-            print(f"job {job_id} submitted successfully, waiting for transcript")
-
-            # Note that in production, you should set up notifications instead of polling.
-            # Notifications are described here: https://docs.speechmatics.com/speech-to-text/batch/notifications
-            transcript = client.wait_for_completion(job_id, transcription_format="txt")
-            print(f"This is the transcription:\n{transcript}")
-            transcript_full = client.wait_for_completion(job_id, transcription_format="txt")
-            print(f"This is full data:\n{transcript_full}")
-
-        except HTTPStatusError as e:
-            if e.response.status_code == 401:
-                print("Invalid API key - Check your API_KEY at the top of the code!")
-            elif e.response.status_code == 400:
-                print(e.response.json()["detail"])
-            else:
-                raise e
-
-    return transcript
-
-
-# speaker_sensitivity can be changed*
 def speechmatics_runner_from_bytes(audio_bytes, suffix=".wav"):
     LANGUAGE = "he"
 
@@ -142,7 +99,7 @@ def speechmatics_runner_from_bytes(audio_bytes, suffix=".wav"):
 
         with BatchClient(settings) as client:
             job_id = client.submit_job(
-                audio=tmp.name,
+                audio=tmp.name, # or audio_path of available.
                 transcription_config=conf,
             )
 

@@ -104,44 +104,86 @@ async function updateUserTests(userId, ageYears, ageMonths,
 }
 
 
-// Speaker Verification API call
-async function verifySpeaker(userId, audioFile64) {
-  const url = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
+// -------------------------------
+// POST + Polling Speaker Verification
+// -------------------------------
+async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout = 30000) {
+  const postUrl = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
+  const getUrl = `https://seeandsay-backend.onrender.com/api/VerifySpeaker/${userId}`;
 
   try {
-    const response = await fetch(url, {
+    // -----------------------
+    // Step 1: POST to start verification
+    // -----------------------
+    const postResponse = await fetch(postUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: userId,
-        audioFile64: audioFile64
-      }),
+      body: JSON.stringify({ userId, audioFile64 }),
     });
 
-    // Backend returned an error → verification failed
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Verification failed (${response.status}): ${errorText}`);
+    if (!postResponse.ok) {
+      const errorText = await postResponse.text();
+      throw new Error(`POST failed (${postResponse.status}): ${errorText}`);
     }
 
-    // Wait for backend JSON response
-    const result = await response.json();
+    const postResult = await postResponse.json();
 
-    if (result.success === true) {
-      console.log("✅ Speaker verification successful");
-      console.log("👤 Parent speaker:", result.parent_speaker);
-      return {
-        success: true,
-        parentSpeaker: result.parent_speaker
-      };
+    // If backend returns success="processing", we start polling
+    if (postResult.success === "processing") {
+      console.log("⏳ Verification started, polling for result...");
+
+      const startTime = Date.now();
+
+      while (true) {
+        // -----------------------
+        // Step 2: Poll GET endpoint
+        // -----------------------
+        const getResponse = await fetch(getUrl);
+        if (!getResponse.ok) {
+          const errorText = await getResponse.text();
+          throw new Error(`GET failed (${getResponse.status}): ${errorText}`);
+        }
+
+        const getResult = await getResponse.json();
+        const status = getResult.success;
+
+        if (status === "processing") {
+          // still processing → wait for next poll
+          if (Date.now() - startTime > timeout) {
+            throw new Error("Verification timed out");
+          }
+          await new Promise(res => setTimeout(res, pollInterval));
+          continue;
+        }
+
+        // Done: status is true or false
+        if (status === true) {
+          console.log("✅ Speaker verification successful");
+          console.log("👤 Parent speaker:", getResult.parent_speaker);
+          return {
+            success: true,
+            parentSpeaker: getResult.parent_speaker,
+            updatedTranscription: getResult.updated_transcription
+          };
+        } else if (status === false) {
+          console.warn("❌ Speaker verification failed");
+          return { success: false };
+        }
+      }
     } else {
-      console.warn("⚠️ Verification returned success=false");
-      return { success: false };
+      // In case backend immediately returns True/False (rare)
+      return {
+        success: postResult.success === false,
+        parentSpeaker: postResult.parent_speaker,
+        updatedTranscription: postResult.updated_transcription
+        console.warn("❌ Backend immediately returns True/False");
+
+      };
     }
 
   } catch (err) {
     console.error("❌ Speaker verification error:", err);
-    // Return null on network errors to allow testing without backend connection
     return null;
   }
 }
+

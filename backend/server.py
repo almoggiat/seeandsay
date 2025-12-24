@@ -15,6 +15,7 @@ from MongoDB import SeeSayMongoStorage
 
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import BackgroundTasks
 
 from typing import Optional
 
@@ -46,54 +47,7 @@ app.add_middleware(
 )
 
 
-# def base64_to_audio_file(base64_string: str, output_dir: str = "recordings", user_id: Optional[int] = None) -> str:
-#     """
-#     Converts a base64-encoded audio string to a playable MP3 file.
-#
-#     Args:
-#         base64_string: The base64 string (e.g., "data:audio/mpeg;base64,UklGRi...")
-#         output_dir: Directory to save the audio file (default: "recordings")
-#         user_id: Optional user ID to include in filename
-#
-#     Returns:
-#         str: Full path to the saved audio file
-#
-#     Raises:
-#         ValueError: If base64_string is invalid
-#         IOError: If file cannot be written
-#     """
-#     try:
-#         # Split the data URL to get just the base64 part
-#         if "," in base64_string:
-#             header, encoded = base64_string.split(",", 1)
-#         else:
-#             encoded = base64_string
-#
-#         # Decode base64 string to bytes
-#         audio_bytes = base64.b64decode(encoded)
-#
-#         # Create output directory if it doesn't exist
-#         os.makedirs(output_dir, exist_ok=True)
-#
-#         # Generate unique filename with timestamp
-#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#         user_part = f"{user_id}_" if user_id else ""
-#         filename = f"recording_{user_part}{timestamp}.mp3"
-#         file_path = os.path.join(output_dir, filename)
-#
-#         # Write bytes to file
-#         with open(file_path, "wb") as f:
-#             f.write(audio_bytes)
-#
-#         print(f"✅ Audio file saved: {file_path} ({len(audio_bytes):,} bytes)")
-#         return file_path
-#
-#     except Exception as e:
-#         raise ValueError(f"Failed to convert base64 to audio file: {e}")
 
-
-
-# Request Models
 class CreateUserRequest(BaseModel):
     userId: int
     userName: Optional[str] = None
@@ -163,40 +117,70 @@ def add_test(test: AddTestRequest):
 
 
 
-@app.post("/api/VerifySpeaker")
-def verify_speaker(data: SpeakerVerificationRequest):
-    logger.warning(
-        f"Received speaker verification request for user: {data.userId}"
-    )
+## SPEAKER VALIDATION
+
+# -------------------------------
+# Speaker Verification Background Task
+# -------------------------------
+def run_speaker_verification(user_id: int, audio_base64: str):
+    """Run verification and update MongoDB with final True/False."""
+    collection = storage.db["speaker_verification_results"]
+
+    # Insert placeholder with 'processing'
+    doc_id = collection.insert_one({
+        "userId": user_id,
+        "success": "processing",  # <-- 3-state: processing / True / False
+        "parent_speaker": None,
+        "updated_transcription": None
+    }).inserted_id
 
     try:
-        verification_result = speaker_verification(data.audioFile64)
-
-        return {
-            "success": verification_result["success"],
-            "parent_speaker": verification_result["parent_speaker"]
-        }
-
-    except Exception:
-        logger.error("Unexpected error during speaker verification")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error"
+        res = speaker_verification(audio_base64)
+        collection.update_one(
+            {"_id": doc_id},
+            {"$set": {
+                "success": res["success"],  # True / False after completion
+                "parent_speaker": res["parent_speaker"],
+                "updated_transcription": res["updated_transcription"]
+            }}
         )
+    except Exception as e:
+        logger.error(f"Speaker verification failed: {e}")
+        collection.update_one({"_id": doc_id}, {"$set": {"success": False}})
 
 
+# -------------------------------
+# POST /api/VerifySpeaker ---> Receives New Requests
+# -------------------------------
+@app.post("/api/VerifySpeaker")
+def verify_speaker_endpoint(data: SpeakerVerificationRequest, background_tasks: BackgroundTasks):
+    """
+    Immediately return processing.
+    Background task will update MongoDB with True/False later.
+    """
+    logger.warning(f"Received speaker verification request for user: {data.userId}")
+    background_tasks.add_task(run_speaker_verification, data.userId, data.audioFile64)
+    return {"success": "processing", "parent_speaker": None}
 
+# -------------------------------
+# GET verification result
+# -------------------------------
+@app.get("/api/VerifySpeaker/{user_id}")
+def get_verification_result(user_id: int):
+    """
+    Frontend can poll this endpoint to get:
+    - success = "processing" → still running
+    - success = True / False → task completed
+    """
+    collection = storage.db["speaker_verification_results"]
+    doc = collection.find_one({"userId": user_id}, sort=[("_id", -1)])
+    if not doc:
+        raise HTTPException(status_code=404, detail="No verification found for this user")
 
-
-
-
-
-# Not In Use
-# @app.get("/api/getUser/{user_id}")
-# def get_user(user_id: str):
-#     user = storage.get_user_config(user_id)
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-#     return {"success": True, "user": user}
+    return {
+        "success": doc.get("success", "processing"),
+        "parent_speaker": doc.get("parent_speaker"),
+        "updated_transcription": doc.get("updated_transcription", "")
+    }
 
 
