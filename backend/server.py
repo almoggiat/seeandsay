@@ -226,6 +226,16 @@ def verify_speaker_endpoint(data: SpeakerVerificationRequest, background_tasks: 
     Background task will submit Speechmatics job and poll asynchronously.
     """
     logger.warning(f"Received speaker verification request for user: {data.userId}")
+    collection = storage.db["speaker_verification_results"]
+
+    # Insert placeholder immediately
+    doc_id = collection.insert_one({
+        "userId": data.userId,
+        "success": "processing",
+        "parent_speaker": None,
+        "updated_transcription": None
+    }).inserted_id
+
     background_tasks.add_task(submit_speechmatics_job, data.userId, data.audioFile64)
     return {"success": "processing", "parent_speaker": None}
 
