@@ -118,30 +118,79 @@ async function verifySpeaker(userId, audioFile64) {
       }),
     });
 
-    // Backend returned an error → verification failed
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Verification failed (${response.status}): ${errorText}`);
+      throw new Error(`Verification start failed (${response.status})`);
     }
 
-    // Wait for backend JSON response
-    const result = await response.json();
+    const data = await response.json();
 
-    if (result.success === true) {
-      console.log("✅ Speaker verification successful");
-      console.log("👤 Parent speaker:", result.parent_speaker);
-      return {
-        success: true,
-        parentSpeaker: result.parent_speaker
-      };
-    } else {
-      console.warn("⚠️ Verification returned success=false");
-      return { success: false };
-    }
+    console.log("⏳ Speaker verification started. Job ID:", data.job_id);
+
+    // IMPORTANT: return job_id, not result
+    return {
+      jobId: data.job_id,
+      status: "processing"
+    };
 
   } catch (err) {
-    console.error("❌ Speaker verification error:", err);
-    // Return null on network errors to allow testing without backend connection
+    console.error("❌ Failed to start speaker verification:", err);
     return null;
   }
 }
+
+async function pollSpeakerVerification(jobId, {
+  onSuccess,
+  onFailure,
+  onError,
+  intervalMs = 1500,
+  timeoutMs = 60000
+}) {
+  const startTime = Date.now();
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(
+        `https://seeandsay-backend.onrender.com/api/VerifySpeaker/status/${jobId}`
+      );
+
+      if (!res.ok) {
+        throw new Error(`Status fetch failed (${res.status})`);
+      }
+
+      const data = await res.json();
+
+      // ⏳ Still running
+      if (data.status === "processing") {
+        if (Date.now() - startTime > timeoutMs) {
+          clearInterval(interval);
+          onError?.("Verification timed out");
+        }
+        return;
+      }
+
+      // ✅ Done
+      if (data.status === "done") {
+        clearInterval(interval);
+
+        if (data.result?.success === true) {
+          onSuccess?.(data.result);
+        } else {
+          onFailure?.(data.result);
+        }
+        return;
+      }
+
+      // ❌ Error
+      if (data.status === "error") {
+        clearInterval(interval);
+        onError?.(data.error);
+      }
+
+    } catch (err) {
+      clearInterval(interval);
+      console.error("❌ Polling error:", err);
+      onError?.(err.message);
+    }
+  }, intervalMs);
+}
+

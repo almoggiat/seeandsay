@@ -209,80 +209,100 @@ React.useEffect(() => {
   };
 
   const confirmVoiceIdentifier = async function() {
-    // Stop the reading recording
-    if (permission && sessionRecordingStarted) {
-      SessionRecorder.stopContinuousRecording();
-      console.log("🛑 Stopped reading recording, preparing for validation...");
-      
-      // Wait for recording to be processed and converted to MP3
-      // Poll until recording is ready (similar to completeSession)
-      var pollAttempts = 0;
-      var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
-      
-      var checkRecordingReady = async function() {
-        pollAttempts++;
-        
-        try {
-          const recordingData = await SessionRecorder.getRecordingAndText();
-          if (recordingData && recordingData.recordingBlob) {
-            console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
-            // Convert blob to base64
-            const reader = new FileReader();
-            reader.onloadend = async function() {
-              const audioBase64 = reader.result;
-              setReadingRecordingBlob(audioBase64);
-              
-              // Show loading screen while waiting for backend
-              setReadingValidationInProgress(true);
-              
-              // Send to backend for validation
-              const validationResult = await verifySpeaker(idDigits,audioBase64);
-              
-              // Hide loading screen
+  // Stop the reading recording
+  if (permission && sessionRecordingStarted) {
+    SessionRecorder.stopContinuousRecording();
+    console.log("🛑 Stopped reading recording, preparing for validation...");
+
+    // Wait for recording to be processed and converted to MP3
+    // Poll until recording is ready (similar to completeSession)
+    var pollAttempts = 0;
+    var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
+
+    var checkRecordingReady = async function() {
+      pollAttempts++;
+
+      try {
+        const recordingData = await SessionRecorder.getRecordingAndText();
+        if (recordingData && recordingData.recordingBlob) {
+          console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onloadend = async function() {
+            const audioBase64 = reader.result;
+            setReadingRecordingBlob(audioBase64);
+
+            // Show loading screen while waiting for backend
+            setReadingValidationInProgress(true);
+
+            // --- START OF CHANGE ---
+            const verificationJob = await verifySpeaker(idDigits, audioBase64);
+
+            if (!verificationJob || !verificationJob.jobId) {
+              console.warn("⚠️ Could not start speaker verification");
               setReadingValidationInProgress(false);
-              
-              // verifySpeaker can return:
-              // - null: no backend connection (for testing)
-              // - {success: true, parentSpeaker: ...}: valid
-              // - {success: false, error: ...}: invalid
-              // Convert to boolean/null format expected by the UI
-              if (validationResult === null) {
-                // No connection - show options
-                setReadingValidationResult(null);
-                setReadingValidated(false);
-              } else if (validationResult && validationResult.success === true) {
+              setReadingValidationResult(null);
+              setReadingValidated(false);
+              return;
+            }
+
+            // Poll backend until verification is done
+            pollSpeakerVerification(verificationJob.jobId, {
+              onSuccess: (result) => {
+                console.log("✅ Speaker verification success:", result);
+                setReadingValidationInProgress(false);
                 setReadingValidationResult(true);
                 setReadingValidated(true);
-              } else if (validationResult && validationResult.success === false) {
+              },
+
+              onFailure: () => {
+                console.warn("⚠️ Speaker verification failed");
+                setReadingValidationInProgress(false);
                 setReadingValidationResult(false);
                 setReadingValidated(false);
-              } else {
-                // Fallback: treat as no connection
+              },
+
+              onError: (error) => {
+                console.error("❌ Verification error:", error);
+                setReadingValidationInProgress(false);
                 setReadingValidationResult(null);
                 setReadingValidated(false);
               }
-            };
-            reader.readAsDataURL(recordingData.recordingBlob);
-          } else if (pollAttempts < maxAttempts) {
-            // Not ready yet, check again in 100ms
-            setTimeout(checkRecordingReady, 100);
-          } else {
-            // Timeout - treat as no connection
-            console.warn("⚠️ Reading recording conversion timeout");
-            setReadingValidationResult(null);
-            setReadingValidated(false);
-          }
-        } catch (err) {
-          console.error("Error getting reading recording:", err);
-          if (pollAttempts < maxAttempts) {
-            setTimeout(checkRecordingReady, 100);
-          } else {
-            setReadingValidationResult(null);
-            setReadingValidated(false);
-          }
+            });
+            // --- END OF CHANGE ---
+
+          };
+          reader.readAsDataURL(recordingData.recordingBlob);
+        } else if (pollAttempts < maxAttempts) {
+          // Not ready yet, check again in 100ms
+          setTimeout(checkRecordingReady, 100);
+        } else {
+          // Timeout - treat as no connection
+          console.warn("⚠️ Reading recording conversion timeout");
+          setReadingValidationResult(null);
+          setReadingValidated(false);
         }
-      };
-      
+      } catch (err) {
+        console.error("Error getting reading recording:", err);
+        if (pollAttempts < maxAttempts) {
+          setTimeout(checkRecordingReady, 100);
+        } else {
+          setReadingValidationResult(null);
+          setReadingValidated(false);
+        }
+      }
+    };
+
+    // Start polling after a small initial delay
+    setTimeout(checkRecordingReady, 200);
+  } else {
+    // No recording, skip validation
+    setReadingValidationResult(null);
+    setReadingValidated(true);
+  }
+};
+
+
       // Start polling after a small initial delay
       setTimeout(checkRecordingReady, 200);
     } else {
