@@ -130,11 +130,8 @@ def submit_speechmatics_job(user_id: int, audio_base64: str):
     collection = storage.db["speaker_verification_results"]
     audio_bytes = decode_base64_to_bytes(audio_base64)
 
-    # Submit job (non-blocking)
     from speechmatics.models import ConnectionSettings
     from speechmatics.batch_client import BatchClient
-    import os
-
     SPEECHMATICS_API_KEY = os.environ.get("SPEECHMATICS_API_KEY")
     LANGUAGE = "he"
 
@@ -159,20 +156,20 @@ def submit_speechmatics_job(user_id: int, audio_base64: str):
     }
 
     with BatchClient(settings) as client:
-        job_id = client.submit_job(audio_bytes, transcription_config=conf)
+        # ✅ Pass bytes as tuple (filename, bytes)
+        job_id = client.submit_job(
+            ("audio.wav", audio_bytes),
+            transcription_config=conf
+        )
 
-    # Insert placeholder in MongoDB
-    doc_id = collection.insert_one({
-        "userId": user_id,
-        "success": "processing",   # <-- 3-state: processing / True / False
-        "parent_speaker": None,
-        "updated_transcription": None,
-        "job_id": job_id
-    }).inserted_id
+    # Update MongoDB placeholder with job_id
+    collection.update_one(
+        {"userId": user_id, "success": "processing"},
+        {"$set": {"job_id": job_id}}
+    )
 
-    # Start polling in background (non-blocking)
-    poll_speechmatics_job.delay(user_id, doc_id, job_id)  # Using async / separate thread
-
+    # Start polling asynchronously
+    poll_speechmatics_job(user_id, job_id)
 def poll_speechmatics_job(user_id: int, doc_id, job_id):
     """
     Poll Speechmatics job asynchronously without blocking FastAPI.
