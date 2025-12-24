@@ -99,7 +99,7 @@ def speechmatics_runner_from_bytes(audio_bytes, suffix=".wav"):
 
         with BatchClient(settings) as client:
             job_id = client.submit_job(
-                audio=tmp.name, # or audio_path of available.
+                audio=tmp.name,
                 transcription_config=conf,
             )
 

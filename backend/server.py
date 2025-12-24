@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 # ✅ Import your existing storage manager
 from MongoDB import SeeSayMongoStorage
 
-import threading
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import BackgroundTasks
@@ -31,8 +30,6 @@ logger = logging.getLogger(__name__)
 
 mongodb_url = os.environ.get("MONGODB_URL")
 database_name = os.environ.get("DATABASE_NAME")
-
-LANGUAGE = "he"
 
 # Initialize MongoDB storage manager
 storage = SeeSayMongoStorage(mongodb_url, database_name)
@@ -120,125 +117,40 @@ def add_test(test: AddTestRequest):
 
 
 
-## SPEAKER VALIDATION
-
-# -------------------------------
-# Speaker Verification Background Tasks
-# -------------------------------
-def poll_speechmatics_job(doc_id: str, job_id: str, poll_interval=10):
-    """
-    Poll Speechmatics job asynchronously without blocking FastAPI.
-    Update MongoDB when done.
-    """
-    settings = ConnectionSettings(
-        url="https://asr.api.speechmatics.com/v2",
-        auth_token=SPEECHMATICS_API_KEY,
-    )
-    collection = storage.db["speaker_verification_results"]
-
-    with BatchClient(settings) as client:
-        while True:
-            job_status = client.get_job_status(job_id)
-            if job_status == "done":
-                transcript = client.get_transcription(job_id, transcription_format="txt")
-                result = speaker_recognition(transcript)
-
-                collection.update_one(
-                    {"_id": doc_id},
-                    {"$set": {
-                        "success": result["success"],
-                        "parent_speaker": result["parent_speaker"],
-                        "updated_transcription": result["updated_transcription"]
-                    }}
-                )
-                break
-            elif job_status == "failed":
-                collection.update_one({"_id": doc_id}, {"$set": {"success": False}})
-                break
-            else:
-                # still processing, wait before next poll
-                import time
-                time.sleep(poll_interval)
-
-
-def submit_speechmatics_job(doc_id: str, audio_base64: str):
-    """
-    Submit the audio to Speechmatics without blocking.
-    Start polling in a background thread.
-    """
-    collection = storage.db["speaker_verification_results"]
-    audio_bytes = decode_base64_to_bytes(audio_base64)
-
-    settings = ConnectionSettings(
-        url="https://asr.api.speechmatics.com/v2",
-        auth_token=SPEECHMATICS_API_KEY,
-    )
-
-    conf = {
-        "type": "transcription",
-        "transcription_config": {
-            "language": LANGUAGE,
-            "operating_point": "enhanced",
-            "diarization": {
-                "speaker_sensitivity": 0.3,
-                "prefer_current_speaker": True,
-                "get_speakers": True,
-            },
-            "enable_entities": False,
-        },
-    }
-
-    with BatchClient(settings) as client:
-        job_id = client.submit_job(("audio.wav", audio_bytes), transcription_config=conf)
-
-    # Start polling in a separate thread
-    thread = threading.Thread(target=poll_speechmatics_job, args=(doc_id, job_id))
-    thread.start()
-
-
-# -------------------------------
-# POST /api/VerifySpeaker
-# -------------------------------
 @app.post("/api/VerifySpeaker")
-def verify_speaker_endpoint(data: SpeakerVerificationRequest, background_tasks: BackgroundTasks):
-    """
-    Immediately return 'processing'.
-    Background task will submit Speechmatics job and poll asynchronously.
-    """
-    logger.warning(f"Received speaker verification request for user: {data.userId}")
-    collection = storage.db["speaker_verification_results"]
+def verify_speaker(data: SpeakerVerificationRequest):
+    logger.warning(
+        f"Received speaker verification request for user: {data.userId}"
+    )
 
-    # Insert placeholder immediately
-    doc_id = collection.insert_one({
-        "userId": data.userId,
-        "success": "processing",
-        "parent_speaker": None,
-        "updated_transcription": None
-    }).inserted_id
+    try:
+        verification_result = speaker_verification(data.audioFile64)
 
-    # Schedule background job
-    background_tasks.add_task(submit_speechmatics_job, str(doc_id), data.audioFile64)
+        return {
+            "success": verification_result["success"],
+            "parent_speaker": verification_result["parent_speaker"]
+        }
 
-    return {"success": "processing", "parent_speaker": None}
+    except Exception:
+        logger.error("Unexpected error during speaker verification")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
 
 
-# -------------------------------
-# GET /api/VerifySpeaker/{user_id}
-# -------------------------------
-@app.get("/api/VerifySpeaker/{user_id}")
-def get_verification_result(user_id: int):
-    """
-    Frontend can poll this endpoint to get:
-    - success = 'processing' → still running
-    - success = True / False → task completed
-    """
-    collection = storage.db["speaker_verification_results"]
-    doc = collection.find_one({"userId": user_id}, sort=[("_id", -1)])
-    if not doc:
-        raise HTTPException(status_code=404, detail="No verification found for this user")
 
-    return {
-        "success": doc.get("success", "processing"),
-        "parent_speaker": doc.get("parent_speaker"),
-        "updated_transcription": doc.get("updated_transcription", "")
-    }
+
+
+
+
+
+# Not In Use
+# @app.get("/api/getUser/{user_id}")
+# def get_user(user_id: str):
+#     user = storage.get_user_config(user_id)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     return {"success": True, "user": user}
+
+
