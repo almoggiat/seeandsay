@@ -172,13 +172,15 @@ async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout =
       }
     } else {
       // In case backend immediately returns True/False (rare)
+      console.warn("❌ Backend immediately returns True/False");
       return {
         success: postResult.success === false,
         parentSpeaker: postResult.parent_speaker,
         updatedTranscription: postResult.updated_transcription
-        console.warn("❌ Backend immediately returns True/False");
+        };
 
-      };
+
+
     }
 
   } catch (err) {
