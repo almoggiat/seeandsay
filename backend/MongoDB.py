@@ -59,6 +59,8 @@ class SeeSayMongoStorage:
 
             self.db = self.client[self.database_name]
             self.users_collection = self.db.users
+            self.speaker_jobs_collection = self.db.speaker_jobs
+
             self.fs = gridfs.GridFS(self.db, collection="audioFiles")
 
             # Create indexes for better performance
