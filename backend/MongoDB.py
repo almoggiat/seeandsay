@@ -34,7 +34,6 @@ class SeeSayMongoStorage:
         self.client = None ## MongoDB whole Information
         self.db = None  ## MongoDB specific Database
         self.users_collection = None   ## =self.db.{collecntion_name}
-        self.speaker_jobs_collection = None
         self.fs = None ## GridFS for audio files
         self.connect()
 
@@ -59,13 +58,11 @@ class SeeSayMongoStorage:
 
             self.db = self.client[self.database_name]
             self.users_collection = self.db.users
-            self.speaker_jobs_collection = self.db.speaker_jobs
-
             self.fs = gridfs.GridFS(self.db, collection="audioFiles")
 
             # Create indexes for better performance
             self.users_collection.create_index("userId", unique=True)
-            self.speaker_jobs_collection.create_index("jobId", unique=True)
+
 
             logger.info(f"✅ Connected to MongoDB: {self.database_name}")
 
@@ -76,6 +73,28 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
+    ## Audio FILE Storage --- NOT IN USE (We save string base64)
+    # def upload_audio(self, audio_file_path):
+    #     """Uploads audio file to GridFS and returns the file_id."""
+    #     if not os.path.exists(audio_file_path):
+    #         raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+    #
+    #     with open(audio_file_path, "rb") as f:
+    #         file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
+    #     logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
+    #     return file_id
+    # def download_audio(self, file_id, output_path):
+    #     file_data = self.fs.get(ObjectId(file_id))
+    #     with open(output_path, "wb") as f:
+    #         f.write(file_data.read())
+    #     logger.info(f"🎧 Audio ({file_id}) downloaded to {output_path}")
+    #     ## usage:
+    #     # audio_id = user_doc['tests'][<testNum>]['audioFileId']
+    #     # db._download_audio(audio_id, "recovered_audio.mp3")
+
+    import base64
+    from pymongo import MongoClient
+    from datetime import datetime
 
     def get_user_audioFile_from_64base(self, user_id, test_index=-1, output_path="output_audio.mp3"):
         """
@@ -198,51 +217,6 @@ class SeeSayMongoStorage:
         except Exception as e:
             logger.error(f"❌ Error adding test for user {user_id}: {e}")
             return False
-
-    def create_speaker_job(self, job_id, user_id):
-        job = {
-            "jobId": job_id,
-            "userId": user_id,
-            "status": "processing",
-            "result": None,
-            "error": None,
-            "createdAt": datetime.now(),
-            "updatedAt": datetime.now()
-        }
-        self.speaker_jobs_collection.insert_one(job)
-
-    def update_speaker_job_success(self, job_id, success, parent_speaker):
-        self.speaker_jobs_collection.update_one(
-            {"jobId": job_id},
-            {
-                "$set": {
-                    "status": "done",
-                    "result": {
-                        "success": success,
-                        "parent_speaker": parent_speaker
-                    },
-                    "updatedAt": datetime.now()
-                }
-            }
-        )
-
-    def update_speaker_job_error(self, job_id, error_message):
-        self.speaker_jobs_collection.update_one(
-            {"jobId": job_id},
-            {
-                "$set": {
-                    "status": "error",
-                    "error": error_message,
-                    "updatedAt": datetime.now()
-                }
-            }
-        )
-
-    def get_speaker_job(self, job_id):
-        return self.speaker_jobs_collection.find_one(
-            {"jobId": job_id},
-            {"_id": 0}
-        )
 
     # get one user info using user_id.
     def get_user_config(self, user_id):

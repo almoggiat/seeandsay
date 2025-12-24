@@ -162,58 +162,26 @@ def add_test(test: AddTestRequest):
 
 
 
-from fastapi import BackgroundTasks
-import uuid
 
 @app.post("/api/VerifySpeaker")
-def verify_speaker(
-    data: SpeakerVerificationRequest,
-    background_tasks: BackgroundTasks
-):
-    job_id = str(uuid.uuid4())
-
-    storage.create_speaker_job(
-        job_id=job_id,
-        user_id=data.userId
+def verify_speaker(data: SpeakerVerificationRequest):
+    logger.warning(
+        f"Received speaker verification request for user: {data.userId}"
     )
 
-    background_tasks.add_task(
-        run_speaker_verification_job,
-        job_id,
-        data.userId,
-        data.audioFile64
-    )
-
-    return {
-        "job_id": job_id,
-        "status": "processing"
-    }
-
-
-@app.get("/api/VerifySpeaker/status/{job_id}")
-def get_speaker_verification_status(job_id: str):
-    job = storage.get_speaker_job(job_id)
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return job
-
-
-def run_speaker_verification_job(job_id, user_id, base64_audio):
     try:
-        result = speaker_verification(base64_audio)
+        verification_result = speaker_verification(data.audioFile64)
 
-        storage.update_speaker_job_success(
-            job_id=job_id,
-            success=result["success"],
-            parent_speaker=result["parent_speaker"]
-        )
+        return {
+            "success": verification_result["success"],
+            "parent_speaker": verification_result["parent_speaker"]
+        }
 
-    except Exception as e:
-        storage.update_speaker_job_error(
-            job_id=job_id,
-            error_message=str(e)
+    except Exception:
+        logger.error("Unexpected error during speaker verification")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
         )
 
 
