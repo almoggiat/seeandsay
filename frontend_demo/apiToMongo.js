@@ -107,14 +107,13 @@ async function updateUserTests(userId, ageYears, ageMonths,
 // -------------------------------
 // POST + Polling Speaker Verification
 // -------------------------------
+// Speaker Verification API call with polling
 async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout = 30000) {
   const postUrl = "https://seeandsay-backend.onrender.com/api/VerifySpeaker";
   const getUrl = `https://seeandsay-backend.onrender.com/api/VerifySpeaker/${userId}`;
 
   try {
-    // -----------------------
     // Step 1: POST to start verification
-    // -----------------------
     const postResponse = await fetch(postUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -128,16 +127,13 @@ async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout =
 
     const postResult = await postResponse.json();
 
-    // If backend returns success="processing", we start polling
+    // Always check if backend returned "processing"
     if (postResult.success === "processing") {
       console.log("⏳ Verification started, polling for result...");
 
       const startTime = Date.now();
 
       while (true) {
-        // -----------------------
-        // Step 2: Poll GET endpoint
-        // -----------------------
         const getResponse = await fetch(getUrl);
         if (!getResponse.ok) {
           const errorText = await getResponse.text();
@@ -148,7 +144,6 @@ async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout =
         const status = getResult.success;
 
         if (status === "processing") {
-          // still processing → wait for next poll
           if (Date.now() - startTime > timeout) {
             throw new Error("Verification timed out");
           }
@@ -172,15 +167,12 @@ async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout =
       }
     } else {
       // In case backend immediately returns True/False (rare)
-      console.warn("❌ Backend immediately returns True/False");
+      console.warn("❌ backend immediately returns True/False");
       return {
         success: postResult.success === false,
         parentSpeaker: postResult.parent_speaker,
         updatedTranscription: postResult.updated_transcription
-        };
-
-
-
+      };
     }
 
   } catch (err) {
@@ -188,4 +180,5 @@ async function verifySpeaker(userId, audioFile64, pollInterval = 2000, timeout =
     return null;
   }
 }
+
 
