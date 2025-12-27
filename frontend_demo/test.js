@@ -231,16 +231,34 @@ React.useEffect(() => {
             reader.onloadend = async function() {
               const audioBase64 = reader.result;
               setReadingRecordingBlob(audioBase64);
-
+              
+              // Calculate verification recording duration
+              // Get the recording blob to calculate duration
+              const verificationBlob = recordingData.recordingBlob;
+              let verificationDuration = 0;
+              
+              try {
+                // Calculate duration from the audio blob
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const arrayBuffer = await verificationBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                verificationDuration = Math.floor(audioBuffer.duration * 1000); // Convert to milliseconds
+                console.log("📏 Verification recording duration:", verificationDuration, "ms");
+              } catch (err) {
+                console.warn("⚠️ Could not calculate verification duration:", err);
+                // Estimate duration from blob size (rough approximation)
+                verificationDuration = Math.floor((verificationBlob.size / 16000) * 1000); // Rough estimate
+              }
+              
               // Show loading screen while waiting for backend
               setReadingValidationInProgress(true);
-
+              
               // Send to backend for validation
               const validationResult = await verifySpeaker(idDigits,audioBase64);
-
+              
               // Hide loading screen
               setReadingValidationInProgress(false);
-
+              
               // verifySpeaker can return:
               // - null: no backend connection (for testing)
               // - {success: true, parentSpeaker: ...}: valid
@@ -251,9 +269,13 @@ React.useEffect(() => {
                 setReadingValidationResult(null);
                 setReadingValidated(false);
               } else if (validationResult && validationResult.success === true) {
+                // Validation succeeded - store the verification recording for merging
+                SessionRecorder.setVerificationRecording(verificationBlob, verificationDuration);
                 setReadingValidationResult(true);
                 setReadingValidated(true);
               } else if (validationResult && validationResult.success === false) {
+                // Validation failed - discard this verification recording
+                // (Only the last successful one will be kept)
                 setReadingValidationResult(false);
                 setReadingValidated(false);
               } else {
@@ -295,13 +317,14 @@ React.useEffect(() => {
   const handleReadingValidationContinue = async function() {
     // Restart recording for the actual test
     if (permission) {
-      // Clean up old recording data
-      SessionRecorder.cleanup();
+      // Don't call cleanup() here - it would clear the verification recording we just stored
+      // Just stop the current recording and reset timestamps
+      SessionRecorder.stopContinuousRecording();
       
-      // Reset timestamps so they count from question 1
+      // Reset timestamps so they count from question 1 (but will be offset by verification duration)
       SessionRecorder.resetTimestamps();
       
-      // Start new recording for the test
+      // Start new recording for the test (verification recording will be merged automatically)
       const started = await SessionRecorder.startContinuousRecording();
       if (started) {
         setSessionRecordingStarted(true);
@@ -336,18 +359,19 @@ React.useEffect(() => {
   
   const handleReadingValidationRetry = async function() {
     // Reset states and restart recording
+    // This discards the previous verification attempt (only last successful one is kept)
     setReadingValidated(false);
     setReadingValidationResult(null);
     setReadingRecordingBlob(null);
     
-    // Restart recording
+    // Restart recording - clear verification recording since we're retrying
     if (permission) {
-      SessionRecorder.cleanup();
+      SessionRecorder.cleanup(true); // true = clear verification recording
       SessionRecorder.resetTimestamps();
       const started = await SessionRecorder.startContinuousRecording();
       if (started) {
         setSessionRecordingStarted(true);
-        console.log("🔄 Restarted reading recording");
+        console.log("🔄 Restarted reading recording (previous verification discarded)");
       }
     }
   };

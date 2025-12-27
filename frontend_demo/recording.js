@@ -17,6 +17,10 @@ const SessionRecorder = (function() {
   // Pause tracking
   let pauseStartTime = null;
   let totalPausedTime = 0; // Total milliseconds paused
+  
+  // Verification recording tracking (only the last one is kept)
+  let verificationRecordingBlob = null;
+  let verificationRecordingDuration = 0; // Duration in milliseconds
 
   // Get browser-supported audio mime type (prioritize MP4/AAC for MP3-compatible output)
   function getSupportedMimeType() {
@@ -123,6 +127,13 @@ const SessionRecorder = (function() {
     return getFileExtension(currentMimeType);
   }
 
+  // Store verification recording (only the last one is kept)
+  function setVerificationRecording(blob, durationMs) {
+    verificationRecordingBlob = blob;
+    verificationRecordingDuration = durationMs;
+    console.log("✅ Stored verification recording, duration:", durationMs, "ms");
+  }
+
   // Start continuous session recording
   async function startContinuousRecording() {
     try {
@@ -151,7 +162,92 @@ const SessionRecorder = (function() {
       // Handle recording stop
       recorder.onstop = async function() {
         const blobType = preferredMime || currentMimeType || (audioChunks[0] && audioChunks[0].type) || "audio/webm";
-        const originalBlob = new Blob(audioChunks, { type: blobType });
+        let originalBlob = new Blob(audioChunks, { type: blobType });
+        
+        // If we have a verification recording, merge it with the test recording
+        if (verificationRecordingBlob) {
+          console.log("🔗 Merging verification recording with test recording...");
+          try {
+            // Convert both blobs to AudioBuffers, concatenate, then convert back
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Load verification recording
+            const verificationArrayBuffer = await verificationRecordingBlob.arrayBuffer();
+            const verificationBuffer = await audioContext.decodeAudioData(verificationArrayBuffer);
+            
+            // Load test recording
+            const testArrayBuffer = await originalBlob.arrayBuffer();
+            const testBuffer = await audioContext.decodeAudioData(testArrayBuffer);
+            
+            // Create new buffer with combined length
+            const combinedLength = verificationBuffer.length + testBuffer.length;
+            const combinedBuffer = audioContext.createBuffer(
+              verificationBuffer.numberOfChannels,
+              combinedLength,
+              verificationBuffer.sampleRate
+            );
+            
+            // Copy verification recording to start
+            for (let channel = 0; channel < verificationBuffer.numberOfChannels; channel++) {
+              combinedBuffer.getChannelData(channel).set(verificationBuffer.getChannelData(channel), 0);
+            }
+            
+            // Copy test recording after verification
+            for (let channel = 0; channel < testBuffer.numberOfChannels; channel++) {
+              const combinedChannel = combinedBuffer.getChannelData(channel);
+              const testChannel = testBuffer.getChannelData(channel);
+              combinedChannel.set(testChannel, verificationBuffer.length);
+            }
+            
+            // Convert combined buffer to a format that can be converted to MP3
+            // We'll use the convertToMP3 function which expects a blob
+            // Create a WAV blob from the combined buffer
+            const sampleRate = combinedBuffer.sampleRate;
+            const numChannels = combinedBuffer.numberOfChannels;
+            const length = combinedBuffer.length;
+            
+            // Create WAV file
+            const wavBuffer = new ArrayBuffer(44 + length * numChannels * 2);
+            const view = new DataView(wavBuffer);
+            
+            // WAV header
+            const writeString = function(offset, string) {
+              for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+              }
+            };
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + length * numChannels * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, length * numChannels * 2, true);
+            
+            // Convert float samples to 16-bit PCM
+            let offset = 44;
+            for (let i = 0; i < length; i++) {
+              for (let channel = 0; channel < numChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, combinedBuffer.getChannelData(channel)[i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+              }
+            }
+            
+            // Create blob from WAV data
+            originalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+            console.log("✅ Merged verification and test recordings");
+          } catch (err) {
+            console.error("❌ Failed to merge recordings, using test recording only:", err);
+            // Continue with just the test recording if merge fails
+          }
+        }
         
         // Convert to MP3
         console.log("🎵 Converting recording to MP3...");
@@ -189,13 +285,16 @@ const SessionRecorder = (function() {
       isRecording = true;
       
       // Initialize recording start time
-      recordingStartTime = Date.now();
+      // If we have verification recording, adjust start time to account for it
+      // This way timestamps will be offset by verification duration
+      recordingStartTime = Date.now() - verificationRecordingDuration;
       questionTimestamps = [];
       
       // Store in localStorage
       localStorage.setItem("sessionRecordingActive", "true");
       localStorage.setItem("recordingStartTime", recordingStartTime.toString());
-      localStorage.setItem("totalPausedTime", 0)
+      localStorage.setItem("totalPausedTime", 0);
+      localStorage.setItem("verificationRecordingDuration", verificationRecordingDuration.toString());
 
       console.log("🎙️ Started continuous session recording");
       return true;
@@ -376,13 +475,21 @@ const SessionRecorder = (function() {
         totalPausedTime = parseInt(storedPausedTime, 10);
       }
       console.log(totalPausedTime, "total")
-
+    }
+    
+    // Recover verification duration if not in memory
+    if (verificationRecordingDuration === 0) {
+      const storedVerificationDuration = localStorage.getItem("verificationRecordingDuration");
+      if (storedVerificationDuration) {
+        verificationRecordingDuration = parseInt(storedVerificationDuration, 10);
+      }
     }
     
     const currentTime = Date.now();
     let elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
     
-    // Check if this is the first question 1 marking - ensure it's always at 0 seconds
+    // Check if this is the first question 1 marking
+    // If we have verification recording, question 1 should start at verification duration, not 0
     // Check if there are any existing question 1 timestamps (handle both string and number)
     const hasQuestion1 = questionTimestamps.some(function(item) {
       const itemNum = String(item.questionNumber);
@@ -390,10 +497,11 @@ const SessionRecorder = (function() {
       return itemNum === "1" || itemNum === currentNum;
     });
     
-    // If this is question 1 and it's the first time marking it, set to 0
+    // If this is question 1 and it's the first time marking it
     const questionNumStr = String(questionNumber);
     if (questionNumStr === "1" && !hasQuestion1) {
-      elapsedMs = 0;
+      // Set to verification duration (in seconds) instead of 0
+      elapsedMs = verificationRecordingDuration;
     }
     
     questionTimestamps.push({
@@ -505,7 +613,8 @@ const SessionRecorder = (function() {
   }
 
   // Clean up on session end
-  function cleanup() {
+  // If clearVerification is true, also clears verification recording (used on retry)
+  function cleanup(clearVerification) {
     stopContinuousRecording();
     localStorage.removeItem("sessionRecordingActive");
     localStorage.removeItem("sessionRecordingUrl");
@@ -516,12 +625,20 @@ const SessionRecorder = (function() {
     localStorage.removeItem("recordingPaused");
     localStorage.removeItem("pauseStartTime");
     localStorage.removeItem("totalPausedTime");
+    
+    // Only clear verification recording if explicitly requested (on retry)
+    if (clearVerification) {
+      localStorage.removeItem("verificationRecordingDuration");
+      verificationRecordingBlob = null;
+      verificationRecordingDuration = 0;
+    }
+    
     recordingStartTime = null;
     questionTimestamps = [];
     totalPausedTime = 0;
     pauseStartTime = null;
     isPaused = false;
-    console.log("🧹 Cleaned up session recording");
+    console.log("🧹 Cleaned up session recording" + (clearVerification ? " (including verification)" : ""));
   }
 
   // Get final recording URL (synchronous version for immediate use)
@@ -563,6 +680,7 @@ const SessionRecorder = (function() {
     getTimestampText: getTimestampText,
     getRecordingAndText: getRecordingAndText,
     resetTimestamps: resetTimestamps,
+    setVerificationRecording: setVerificationRecording,
     cleanup: cleanup
   };
 })();

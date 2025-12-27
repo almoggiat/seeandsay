@@ -64,7 +64,7 @@ function App() {
     localStorage.removeItem("idDigits");
     localStorage.removeItem("sessionCompleted");
     localStorage.removeItem("sessionRecordingStarted");
-    
+    s
     // Clean up continuous session recording
     localStorage.removeItem("sessionRecordingActive");
     localStorage.removeItem("sessionRecordingUrl");
