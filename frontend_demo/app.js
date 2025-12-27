@@ -73,8 +73,16 @@ function App() {
     localStorage.removeItem("recordingStartTime");
     localStorage.removeItem("questionTimestamps");
 
+    // validation related
+    localStorage.removeItem("readingValidated");
+    localStorage.removeItem("readingValidationResult");
+    localStorage.removeItem("readingRecordingBlob");
+
     window.location.reload();
   }
+  
+
+
 
   let content;
   if (!csvLoaded) {
