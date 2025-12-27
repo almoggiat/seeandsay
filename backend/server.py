@@ -107,7 +107,7 @@ def add_test(test: AddTestRequest):
         partly=test.partly,
         wrong=test.wrong,
         audio_file_base64=test.audioFile64,
-        updated_transcription=updated_transcription,
+        updated_transcription=updated_transcription["updated_transcription"],
         timestamps=test.timestamps
     )
     if not success:

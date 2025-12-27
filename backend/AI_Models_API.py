@@ -122,19 +122,42 @@ def speaker_recognition(transcription):
 
     result = {
         "success": False,
+        "updated_transcription": "None",
         "parent_speaker": "None"
     }
 
-    # Scan all speakers
+    parent_speaker = None
+
+    # Scan all speakers for keywords
     for speaker, text in blocks:
         text_lower = text.lower()
         if any(k.lower() in text_lower for k in KEY_WORDS):
+            parent_speaker = speaker
             result["success"] = True
-            result["parent_speaker"] = speaker
-            return result
+            result["parent_speaker"] = parent_speaker
+            break
 
-    # No keyword found
+    # No parent found → return early
+    if not parent_speaker:
+        return result
+
+    # Identify child speaker (if any other speaker exists)
+    speakers = list({speaker for speaker, _ in blocks})
+    child_speaker = None
+    for s in speakers:
+        if s != parent_speaker:
+            child_speaker = s
+            break
+
+    # Replace labels in transcription
+    updated = transcription
+    updated = updated.replace(parent_speaker, "parent:")
+    if child_speaker:
+        updated = updated.replace(child_speaker, "child:")
+
+    result["updated_transcription"] = updated
     return result
+
 
 
 
