@@ -21,6 +21,10 @@ const SessionRecorder = (function() {
   // Verification recording tracking (only the last one is kept)
   let verificationRecordingBlob = null;
   let verificationRecordingDuration = 0; // Duration in milliseconds
+  
+  // Store the last stopped recording's original blob (before MP3 conversion)
+  // This is used to get the original verification recording blob
+  let lastStoppedOriginalBlob = null;
 
   // Get browser-supported audio mime type (prioritize MP4/AAC for MP3-compatible output)
   function getSupportedMimeType() {
@@ -164,9 +168,23 @@ const SessionRecorder = (function() {
         const blobType = preferredMime || currentMimeType || (audioChunks[0] && audioChunks[0].type) || "audio/webm";
         let originalBlob = new Blob(audioChunks, { type: blobType });
         
+        // Store the original blob before any processing (for verification recording storage)
+        lastStoppedOriginalBlob = originalBlob;
+        
         // If we have a verification recording, merge it with the test recording
         if (verificationRecordingBlob) {
           console.log("🔗 Merging verification recording with test recording...");
+          console.log("   Verification blob size:", verificationRecordingBlob.size, "bytes");
+          console.log("   Test blob size:", originalBlob.size, "bytes");
+          console.log("   Test audioChunks count:", audioChunks.length);
+          
+          // Ensure test recording has content
+          if (originalBlob.size === 0 || audioChunks.length === 0) {
+            console.error("❌ Test recording is empty! Cannot merge.");
+            // Don't merge if test recording is empty - just use verification
+            // But this shouldn't happen, so log it as an error
+          }
+          
           try {
             // Convert both blobs to AudioBuffers, concatenate, then convert back
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -174,26 +192,35 @@ const SessionRecorder = (function() {
             // Load verification recording
             const verificationArrayBuffer = await verificationRecordingBlob.arrayBuffer();
             const verificationBuffer = await audioContext.decodeAudioData(verificationArrayBuffer);
+            console.log("   Verification buffer decoded:", verificationBuffer.length, "samples,", verificationBuffer.sampleRate, "Hz");
             
             // Load test recording
             const testArrayBuffer = await originalBlob.arrayBuffer();
             const testBuffer = await audioContext.decodeAudioData(testArrayBuffer);
+            console.log("   Test buffer decoded:", testBuffer.length, "samples,", testBuffer.sampleRate, "Hz");
+            
+            // Ensure both recordings have the same sample rate and number of channels
+            // Use the test recording's sample rate (should be the same, but be safe)
+            const sampleRate = testBuffer.sampleRate;
+            const numChannels = Math.max(verificationBuffer.numberOfChannels, testBuffer.numberOfChannels);
             
             // Create new buffer with combined length
             const combinedLength = verificationBuffer.length + testBuffer.length;
             const combinedBuffer = audioContext.createBuffer(
-              verificationBuffer.numberOfChannels,
+              numChannels,
               combinedLength,
-              verificationBuffer.sampleRate
+              sampleRate
             );
             
             // Copy verification recording to start
-            for (let channel = 0; channel < verificationBuffer.numberOfChannels; channel++) {
-              combinedBuffer.getChannelData(channel).set(verificationBuffer.getChannelData(channel), 0);
+            for (let channel = 0; channel < Math.min(verificationBuffer.numberOfChannels, numChannels); channel++) {
+              const verificationChannel = verificationBuffer.getChannelData(channel);
+              const combinedChannel = combinedBuffer.getChannelData(channel);
+              combinedChannel.set(verificationChannel, 0);
             }
             
             // Copy test recording after verification
-            for (let channel = 0; channel < testBuffer.numberOfChannels; channel++) {
+            for (let channel = 0; channel < Math.min(testBuffer.numberOfChannels, numChannels); channel++) {
               const combinedChannel = combinedBuffer.getChannelData(channel);
               const testChannel = testBuffer.getChannelData(channel);
               combinedChannel.set(testChannel, verificationBuffer.length);
@@ -202,8 +229,7 @@ const SessionRecorder = (function() {
             // Convert combined buffer to a format that can be converted to MP3
             // We'll use the convertToMP3 function which expects a blob
             // Create a WAV blob from the combined buffer
-            const sampleRate = combinedBuffer.sampleRate;
-            const numChannels = combinedBuffer.numberOfChannels;
+            // sampleRate and numChannels are already defined above
             const length = combinedBuffer.length;
             
             // Create WAV file
@@ -243,10 +269,15 @@ const SessionRecorder = (function() {
             // Create blob from WAV data
             originalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
             console.log("✅ Merged verification and test recordings");
+            console.log("   Combined length:", length, "samples,", sampleRate, "Hz");
+            console.log("   Combined blob size:", originalBlob.size, "bytes");
           } catch (err) {
             console.error("❌ Failed to merge recordings, using test recording only:", err);
+            console.error("   Error details:", err.message, err.stack);
             // Continue with just the test recording if merge fails
           }
+        } else {
+          console.log("ℹ️ No verification recording to merge, using test recording only");
         }
         
         // Convert to MP3
@@ -579,6 +610,23 @@ const SessionRecorder = (function() {
     return generateTimestampText();
   }
 
+  // Get original recording blob (before MP3 conversion) - used for verification recording storage
+  async function getOriginalRecordingBlob() {
+    // Return the last stopped recording's original blob (stored in onstop handler)
+    if (lastStoppedOriginalBlob) {
+      return lastStoppedOriginalBlob;
+    }
+    
+    // Fallback: try to reconstruct from audioChunks if available
+    if (audioChunks.length > 0) {
+      const blobType = currentMimeType || (audioChunks[0] && audioChunks[0].type) || "audio/webm";
+      return new Blob(audioChunks, { type: blobType });
+    }
+    
+    console.warn("No original recording blob available");
+    return null;
+  }
+
   // Get recording and text data for backend upload
   async function getRecordingAndText() {
     const finalData = localStorage.getItem("sessionRecordingFinal");
@@ -638,6 +686,7 @@ const SessionRecorder = (function() {
     totalPausedTime = 0;
     pauseStartTime = null;
     isPaused = false;
+    lastStoppedOriginalBlob = null;
     console.log("🧹 Cleaned up session recording" + (clearVerification ? " (including verification)" : ""));
   }
 
@@ -679,6 +728,7 @@ const SessionRecorder = (function() {
     downloadTimestampFile: downloadTimestampFile,
     getTimestampText: getTimestampText,
     getRecordingAndText: getRecordingAndText,
+    getOriginalRecordingBlob: getOriginalRecordingBlob,
     resetTimestamps: resetTimestamps,
     setVerificationRecording: setVerificationRecording,
     cleanup: cleanup

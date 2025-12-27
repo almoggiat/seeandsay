@@ -64,7 +64,7 @@ function App() {
     localStorage.removeItem("idDigits");
     localStorage.removeItem("sessionCompleted");
     localStorage.removeItem("sessionRecordingStarted");
-    s
+    
     // Clean up continuous session recording
     localStorage.removeItem("sessionRecordingActive");
     localStorage.removeItem("sessionRecordingUrl");
@@ -72,12 +72,17 @@ function App() {
     localStorage.removeItem("sessionRecordingChunks");
     localStorage.removeItem("recordingStartTime");
     localStorage.removeItem("questionTimestamps");
+    localStorage.removeItem("verificationRecordingDuration");
+    localStorage.removeItem("recordingPaused");
+    localStorage.removeItem("pauseStartTime");
+    localStorage.removeItem("totalPausedTime");
 
     // validation related
     localStorage.removeItem("readingValidated");
     localStorage.removeItem("readingValidationResult");
     localStorage.removeItem("readingRecordingBlob");
-
+    // results related
+    localStorage.removeItem("questionResults");
     window.location.reload();
   }
   

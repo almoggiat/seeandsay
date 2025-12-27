@@ -223,6 +223,10 @@ React.useEffect(() => {
         pollAttempts++;
 
         try {
+          // Get the original blob BEFORE MP3 conversion for merging later
+          const originalVerificationBlob = await SessionRecorder.getOriginalRecordingBlob();
+          
+          // Also get the MP3 version for backend validation
           const recordingData = await SessionRecorder.getRecordingAndText();
           if (recordingData && recordingData.recordingBlob) {
             console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
@@ -233,26 +237,26 @@ React.useEffect(() => {
               setReadingRecordingBlob(audioBase64);
               
               // Calculate verification recording duration
-              // Get the recording blob to calculate duration
-              const verificationBlob = recordingData.recordingBlob;
+              // Use the original blob for duration calculation (more accurate)
+              const blobForDuration = originalVerificationBlob || recordingData.recordingBlob;
               let verificationDuration = 0;
               
               try {
                 // Calculate duration from the audio blob
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const arrayBuffer = await verificationBlob.arrayBuffer();
+                const arrayBuffer = await blobForDuration.arrayBuffer();
                 const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                 verificationDuration = Math.floor(audioBuffer.duration * 1000); // Convert to milliseconds
                 console.log("📏 Verification recording duration:", verificationDuration, "ms");
               } catch (err) {
                 console.warn("⚠️ Could not calculate verification duration:", err);
                 // Estimate duration from blob size (rough approximation)
-                verificationDuration = Math.floor((verificationBlob.size / 16000) * 1000); // Rough estimate
+                verificationDuration = Math.floor((blobForDuration.size / 16000) * 1000); // Rough estimate
               }
               
               // Show loading screen while waiting for backend
               setReadingValidationInProgress(true);
-              
+
               // Send to backend for validation
               const validationResult = await verifySpeaker(idDigits,audioBase64);
               
@@ -269,8 +273,14 @@ React.useEffect(() => {
                 setReadingValidationResult(null);
                 setReadingValidated(false);
               } else if (validationResult && validationResult.success === true) {
-                // Validation succeeded - store the verification recording for merging
-                SessionRecorder.setVerificationRecording(verificationBlob, verificationDuration);
+                // Validation succeeded - store the ORIGINAL verification recording blob for merging
+                // (not the MP3 version, so it can be properly merged with test recording)
+                if (originalVerificationBlob) {
+                  SessionRecorder.setVerificationRecording(originalVerificationBlob, verificationDuration);
+                } else {
+                  console.warn("⚠️ Could not get original verification blob, using MP3 version");
+                  SessionRecorder.setVerificationRecording(recordingData.recordingBlob, verificationDuration);
+                }
                 setReadingValidationResult(true);
                 setReadingValidated(true);
               } else if (validationResult && validationResult.success === false) {
