@@ -694,7 +694,7 @@ const playQuestionOne = function()  {
 //    return questionResults.map(item => {
 //        return [parseInt(item.questionNumber, 10), item.result];
 //  });
-}
+//}
 
 
   function loadAllQuestions() {
