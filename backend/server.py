@@ -58,7 +58,7 @@ class AddTestRequest(BaseModel):
     userId: int
     ageYears: int
     ageMonths: int
-    fullArray: list # Can be changed to List[int]
+    full_array: list # Can be changed to List[int]
     correct: Optional[int] = None
     partly: Optional[int] = None
     wrong: Optional[int] = None
