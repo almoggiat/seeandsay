@@ -113,68 +113,29 @@ def speechmatics_runner_from_bytes(audio_bytes, suffix=".wav"):
 
 
 def speaker_recognition(transcription):
-    """
-    Identify the speaker - parent or child.
-
-    Returns a dict:
-        {
-            "updated_transcription": str,
-            "two_speakers": bool,
-            "success": bool,
-            "parent_speaker": str | None
-        }
-    """
-
     import re
 
     KEY_WORDS = ["בואו נתחיל את המשחק", "וננסה לענות", "באופן נכון"]
 
-    # Extract segments (speaker + text)
     pattern = r"(SPEAKER:\s*S[0-9]+)(.*?)(?=SPEAKER:\s*S[0-9]+|$)"
     blocks = re.findall(pattern, transcription, flags=re.DOTALL)
 
-    speakers = list({speaker for speaker, _ in blocks})
-
     result = {
-        "updated_transcription": transcription,
-        "two_speakers": False,
         "success": False,
         "parent_speaker": "None"
     }
 
-    # More than two speakers
-    if len(speakers) > 2:
-        return result
-
-    # Exactly two speakers
-    result["two_speakers"] = True
-
-    # Identify parent
+    # Scan all speakers
     for speaker, text in blocks:
         text_lower = text.lower()
         if any(k.lower() in text_lower for k in KEY_WORDS):
+            result["success"] = True
             result["parent_speaker"] = speaker
-            break
+            return result
 
-    # No keyword → failed recognition
-    if result["parent_speaker"] is "None":
-        return result
-
-    result["success"] = True
-
-    # Identify child
-    child_speaker = next(
-        s for s in speakers if s != result["parent_speaker"]
-    )
-
-    # Replace labels
-    updated = transcription
-    updated = updated.replace(result["parent_speaker"], "parent:")
-    updated = updated.replace(child_speaker, "child:")
-
-    result["updated_transcription"] = updated
-
+    # No keyword found
     return result
+
 
 
 
