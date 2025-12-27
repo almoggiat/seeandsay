@@ -677,18 +677,25 @@ const playQuestionOne = function()  {
   // =============================================================================
 
   // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
+//  function formatQuestionResultsArray() {
+//    if (questionResults.length === 0) {
+//      return "[]";
+//    }
+//
+//    const formattedTuples = questionResults.map(function(item) {
+//      const questionNum = parseInt(item.questionNumber, 10);
+//      return "(" + questionNum + ",\"" + item.result + "\")";
+//    });
+//
+//    return "[" + formattedTuples.join(",") + "]";
+//  }
+  // Test to convert for a real Array
   function formatQuestionResultsArray() {
-    if (questionResults.length === 0) {
-      return "[]";
-    }
-    
-    const formattedTuples = questionResults.map(function(item) {
-      const questionNum = parseInt(item.questionNumber, 10);
-      return "(" + questionNum + ",\"" + item.result + "\")";
-    });
-    
-    return "[" + formattedTuples.join(",") + "]";
-  }
+    return questionResults.map(item => {
+        return [parseInt(item.questionNumber, 10), item.result];
+  });
+}
+
 
   function loadAllQuestions() {
     const ageGroupOrder = ["2:00-2:06", "2:07-3:00", "3:00-4:00", "4:00-5:00", "5:00-6:00"];

@@ -63,7 +63,7 @@ class AddTestRequest(BaseModel):
     partly: Optional[int] = None
     wrong: Optional[int] = None
     audioFile64: str
-    timestamps: list
+    timestamps: str
 
 class SpeakerVerificationRequest(BaseModel):
     userId: int
