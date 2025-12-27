@@ -139,7 +139,7 @@ def speaker_recognition(transcription):
         "updated_transcription": transcription,
         "two_speakers": False,
         "success": False,
-        "parent_speaker": None
+        "parent_speaker": "None"
     }
 
     # More than two speakers
@@ -157,7 +157,7 @@ def speaker_recognition(transcription):
             break
 
     # No keyword → failed recognition
-    if result["parent_speaker"] is None:
+    if result["parent_speaker"] is "None":
         return result
 
     result["success"] = True
