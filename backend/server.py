@@ -131,8 +131,8 @@ def verify_speaker(data: SpeakerVerificationRequest):
             "parent_speaker": verification_result["parent_speaker"]
         }
 
-    except Exception:
-        logger.error("Unexpected error during speaker verification")
+    except Exception as e:
+        logger.error(f"Unexpected error during speaker verification: {e}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error"
