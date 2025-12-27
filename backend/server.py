@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import BackgroundTasks
 
 from typing import Optional
+import traceback
 
 from AI_Models_API import * ## NEW LINE
 
@@ -125,7 +126,9 @@ def verify_speaker(data: SpeakerVerificationRequest):
 
     try:
         verification_result = speaker_verification(data.audioFile64)
-
+        logger.warning(
+            f"Speaker verification data for user: {data.userId}\n{verification_result}"
+        )
         return {
             "success": verification_result["success"],
             "parent_speaker": verification_result["parent_speaker"]
@@ -133,6 +136,8 @@ def verify_speaker(data: SpeakerVerificationRequest):
 
     except Exception as e:
         logger.error(f"Unexpected error during speaker verification: {e}")
+        logger.error(traceback.format_exc())
+
         raise HTTPException(
             status_code=500,
             detail="Internal server error"
