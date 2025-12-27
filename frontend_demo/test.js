@@ -677,23 +677,23 @@ const playQuestionOne = function()  {
   // =============================================================================
 
   // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
-//  function formatQuestionResultsArray() {
-//    if (questionResults.length === 0) {
-//      return "[]";
-//    }
-//
-//    const formattedTuples = questionResults.map(function(item) {
-//      const questionNum = parseInt(item.questionNumber, 10);
-//      return "(" + questionNum + ",\"" + item.result + "\")";
-//    });
-//
-//    return "[" + formattedTuples.join(",") + "]";
-//  }
-  // Test to convert for a real Array
   function formatQuestionResultsArray() {
-    return questionResults.map(item => {
-        return [parseInt(item.questionNumber, 10), item.result];
-  });
+    if (questionResults.length === 0) {
+      return "[]";
+    }
+
+    const formattedTuples = questionResults.map(function(item) {
+      const questionNum = parseInt(item.questionNumber, 10);
+      return "(" + questionNum + ",\"" + item.result + "\")";
+    });
+
+    return "[" + formattedTuples.join(",") + "]";
+  }
+  // Test to convert for a real Array
+//  function formatQuestionResultsArray() {
+//    return questionResults.map(item => {
+//        return [parseInt(item.questionNumber, 10), item.result];
+//  });
 }
 
 
