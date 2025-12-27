@@ -97,6 +97,9 @@ def add_test(test: AddTestRequest):
     logger.warning(f"Received user test: {test.userId}")
 
     updated_transcription = speaker_verification(test.audioFile64)
+    logger.warning(
+        f"Speaker verification data for user: {test.userId}\n{updated_transcription}"
+    )
 
     success = storage.add_test_to_user(
         user_id=test.userId,
