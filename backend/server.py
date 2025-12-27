@@ -102,7 +102,7 @@ def add_test(test: AddTestRequest):
         user_id=test.userId,
         age_years=test.ageYears,
         age_months=test.ageMonths,
-        full_array=test.fullArray,
+        full_array=test.full_array,
         correct=test.correct,
         partly=test.partly,
         wrong=test.wrong,
