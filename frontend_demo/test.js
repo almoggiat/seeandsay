@@ -209,114 +209,71 @@ React.useEffect(() => {
   };
 
   const confirmVoiceIdentifier = async function() {
-    // Stop the reading recording
+    // Don't stop recording - keep it continuous!
+    // Just get a snapshot of the current recording for validation
     if (permission && sessionRecordingStarted) {
-      SessionRecorder.stopContinuousRecording();
-      console.log("🛑 Stopped reading recording, preparing for validation...");
+      // Get current recording time to calculate verification duration
+      const verificationStartTime = SessionRecorder.getRecordingStartTime();
+      const currentTime = Date.now();
+      const verificationDuration = currentTime - verificationStartTime;
+      
+      console.log("📏 Verification duration so far:", verificationDuration, "ms");
+      
+      // Get a temporary snapshot of the current recording for backend validation
+      // Recording continues uninterrupted
+      try {
+        const tempBlob = await SessionRecorder.getCurrentRecordingBlob();
+        
+        if (tempBlob) {
+          // Convert to base64 for backend
+          const reader = new FileReader();
+          reader.onloadend = async function() {
+            const audioBase64 = reader.result;
+            setReadingRecordingBlob(audioBase64);
+            
+            // Show loading screen while waiting for backend
+            setReadingValidationInProgress(true);
 
-      // Wait for recording to be processed and converted to MP3
-      // Poll until recording is ready (similar to completeSession)
-      var pollAttempts = 0;
-      var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
-
-      var checkRecordingReady = async function() {
-        pollAttempts++;
-
-        try {
-          // Get the original blob BEFORE MP3 conversion for merging later
-          const originalVerificationBlob = await SessionRecorder.getOriginalRecordingBlob();
-          
-          // Also get the MP3 version for backend validation
-          const recordingData = await SessionRecorder.getRecordingAndText();
-          if (recordingData && recordingData.recordingBlob) {
-            console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
-            // Convert blob to base64
-            const reader = new FileReader();
-            reader.onloadend = async function() {
-              const audioBase64 = reader.result;
-              setReadingRecordingBlob(audioBase64);
-              
-              // Calculate verification recording duration
-              // Use the original blob for duration calculation (more accurate)
-              const blobForDuration = originalVerificationBlob || recordingData.recordingBlob;
-              let verificationDuration = 0;
-              
-              try {
-                // Calculate duration from the audio blob
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const arrayBuffer = await blobForDuration.arrayBuffer();
-                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                verificationDuration = Math.floor(audioBuffer.duration * 1000); // Convert to milliseconds
-                console.log("📏 Verification recording duration:", verificationDuration, "ms");
-              } catch (err) {
-                console.warn("⚠️ Could not calculate verification duration:", err);
-                // Estimate duration from blob size (rough approximation)
-                verificationDuration = Math.floor((blobForDuration.size / 16000) * 1000); // Rough estimate
-              }
-              
-              // Show loading screen while waiting for backend
-              setReadingValidationInProgress(true);
-
-              // Send to backend for validation
-              const validationResult = await verifySpeaker(idDigits,audioBase64);
-              
-              // Hide loading screen
-              setReadingValidationInProgress(false);
-              
-              // verifySpeaker can return:
-              // - null: no backend connection (for testing)
-              // - {success: true, parentSpeaker: ...}: valid
-              // - {success: false, error: ...}: invalid
-              // Convert to boolean/null format expected by the UI
-              if (validationResult === null) {
-                // No connection - show options
-                setReadingValidationResult(null);
-                setReadingValidated(false);
-              } else if (validationResult && validationResult.success === true) {
-                // Validation succeeded - store the ORIGINAL verification recording blob for merging
-                // (not the MP3 version, so it can be properly merged with test recording)
-                if (originalVerificationBlob) {
-                  SessionRecorder.setVerificationRecording(originalVerificationBlob, verificationDuration);
-                } else {
-                  console.warn("⚠️ Could not get original verification blob, using MP3 version");
-                  SessionRecorder.setVerificationRecording(recordingData.recordingBlob, verificationDuration);
-                }
-                setReadingValidationResult(true);
-                setReadingValidated(true);
-              } else if (validationResult && validationResult.success === false) {
-                // Validation failed - discard this verification recording
-                // (Only the last successful one will be kept)
-                setReadingValidationResult(false);
-                setReadingValidated(false);
-              } else {
-                // Fallback: treat as no connection
-                setReadingValidationResult(null);
-                setReadingValidated(false);
-              }
-            };
-            reader.readAsDataURL(recordingData.recordingBlob);
-          } else if (pollAttempts < maxAttempts) {
-            // Not ready yet, check again in 100ms
-            setTimeout(checkRecordingReady, 100);
-          } else {
-            // Timeout - treat as no connection
-            console.warn("⚠️ Reading recording conversion timeout");
-            setReadingValidationResult(null);
-            setReadingValidated(false);
-          }
-        } catch (err) {
-          console.error("Error getting reading recording:", err);
-          if (pollAttempts < maxAttempts) {
-            setTimeout(checkRecordingReady, 100);
-          } else {
-            setReadingValidationResult(null);
-            setReadingValidated(false);
-          }
+            // Send to backend for validation
+            const validationResult = await verifySpeaker(idDigits, audioBase64);
+            
+            // Hide loading screen
+            setReadingValidationInProgress(false);
+            
+            // verifySpeaker can return:
+            // - null: no backend connection (for testing)
+            // - {success: true, parentSpeaker: ...}: valid
+            // - {success: false, error: ...}: invalid
+            // Convert to boolean/null format expected by the UI
+            if (validationResult === null) {
+              // No connection - show options
+              setReadingValidationResult(null);
+              setReadingValidated(false);
+            } else if (validationResult && validationResult.success === true) {
+              // Validation succeeded - recording continues, store verification duration for timestamp offset
+              SessionRecorder.setVerificationDuration(verificationDuration);
+              setReadingValidationResult(true);
+              setReadingValidated(true);
+            } else if (validationResult && validationResult.success === false) {
+              // Validation failed - will restart recording
+              setReadingValidationResult(false);
+              setReadingValidated(false);
+            } else {
+              // Fallback: treat as no connection
+              setReadingValidationResult(null);
+              setReadingValidated(false);
+            }
+          };
+          reader.readAsDataURL(tempBlob);
+        } else {
+          setReadingValidationResult(null);
+          setReadingValidated(false);
         }
-      };
-
-      // Start polling after a small initial delay
-      setTimeout(checkRecordingReady, 200);
+      } catch (err) {
+        console.error("Error getting verification recording:", err);
+        setReadingValidationResult(null);
+        setReadingValidated(false);
+      }
     } else {
       // No recording, skip validation
       setReadingValidationResult(null);
@@ -325,35 +282,23 @@ React.useEffect(() => {
   };
   
   const handleReadingValidationContinue = async function() {
-    // Restart recording for the actual test
-    if (permission) {
-      // Don't call cleanup() here - it would clear the verification recording we just stored
-      // Just stop the current recording and reset timestamps
-      SessionRecorder.stopContinuousRecording();
-      
-      // Reset timestamps so they count from question 1 (but will be offset by verification duration)
-      SessionRecorder.resetTimestamps();
-      
-      // Start new recording for the test (verification recording will be merged automatically)
-      const started = await SessionRecorder.startContinuousRecording();
-      if (started) {
-        setSessionRecordingStarted(true);
-        console.log("✅ Started test recording");
-        
-        // Mark question 1 start timestamp after a brief delay to ensure recording is active
-        setTimeout(function() {
-          if (questions.length > 0) {
-            const firstQuestion = questions[0];
-            if (firstQuestion) {
-              SessionRecorder.markQuestionStart(firstQuestion.query_number);
-              console.log("📝 Marked question 1 start at test start");
-            }
+    // Recording is already continuous - no need to restart!
+    // Just mark question 1 start (timestamp will account for verification duration)
+    if (permission && sessionRecordingStarted) {
+      // Recording is already running continuously from verification
+      // Mark question 1 start - it will use verification duration as offset
+      setTimeout(function() {
+        if (questions.length > 0) {
+          const firstQuestion = questions[0];
+          if (firstQuestion) {
+            SessionRecorder.markQuestionStart(firstQuestion.query_number);
+            console.log("📝 Marked question 1 start (recording already continuous from verification)");
           }
-        }, 100);
-      }
-    } else {
+        }
+      }, 100);
+    } else if (microphoneSkipped) {
       // Even without recording, mark question 1 if microphone was skipped
-      if (questions.length > 0 && microphoneSkipped) {
+      if (questions.length > 0) {
         const firstQuestion = questions[0];
         if (firstQuestion) {
           SessionRecorder.markQuestionStart(firstQuestion.query_number);
@@ -368,20 +313,19 @@ React.useEffect(() => {
   };
   
   const handleReadingValidationRetry = async function() {
-    // Reset states and restart recording
-    // This discards the previous verification attempt (only last successful one is kept)
+    // Reset states and restart recording (discard previous attempt)
     setReadingValidated(false);
     setReadingValidationResult(null);
     setReadingRecordingBlob(null);
     
-    // Restart recording - clear verification recording since we're retrying
+    // Restart recording from the beginning
     if (permission) {
-      SessionRecorder.cleanup(true); // true = clear verification recording
+      SessionRecorder.cleanup(true); // true = clear verification duration
       SessionRecorder.resetTimestamps();
       const started = await SessionRecorder.startContinuousRecording();
       if (started) {
         setSessionRecordingStarted(true);
-        console.log("🔄 Restarted reading recording (previous verification discarded)");
+        console.log("🔄 Restarted recording (previous verification discarded)");
       }
     }
   };
@@ -677,6 +621,7 @@ const playQuestionOne = function()  {
     }
     
     // Track question result in full array
+    let updatedQuestionResults = questionResults;
     if (currentQuestion) {
       const questionNumber = currentQuestion.query_number;
       // Map result to string format
@@ -689,18 +634,23 @@ const playQuestionOne = function()  {
         resultString = "wrong";
       }
       
-      // Add to question results array
-      setQuestionResults([...questionResults, {
+      // Create updated array locally to avoid sync issues
+      updatedQuestionResults = [...questionResults, {
         questionNumber: questionNumber,
         result: resultString
-      }]);
+      }];
+      
+      // Add to question results array
+      setQuestionResults(updatedQuestionResults);
+      console.log("Recorded result for question", questionNumber, ":", resultString);
     }
     
     // Simply move to next question or complete session
     if (currentIdx < questions.length - 1) {
       updateCurrentQuestionIndex(currentIdx + 1);
     } else {
-      completeSession();
+      // Pass updated results to avoid sync issues with state
+      completeSession(updatedQuestionResults);
     }
   };
 
@@ -711,12 +661,13 @@ const playQuestionOne = function()  {
   // =============================================================================
 
   // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
-  function formatQuestionResultsArray() {
-    if (questionResults.length === 0) {
+  function formatQuestionResultsArray(resultsArray) {
+    const resultsToFormat = resultsArray || questionResults;
+    if (resultsToFormat.length === 0) {
       return "[]";
     }
 
-    const formattedTuples = questionResults.map(function(item) {
+    const formattedTuples = resultsToFormat.map(function(item) {
       const questionNum = parseInt(item.questionNumber, 10);
       return "(" + questionNum + ",\"" + item.result + "\")";
     });
@@ -919,7 +870,7 @@ const playQuestionOne = function()  {
     completeSession();
   }
 
-function completeSession() {
+function completeSession(updatedQuestionResults) {
   setSessionCompleted(true);
   setImages([]);
   
@@ -945,7 +896,7 @@ function completeSession() {
           console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
           const reader = new FileReader();
           reader.onloadend = function() {
-            const fullArray = formatQuestionResultsArray();
+            const fullArray = formatQuestionResultsArray(updatedQuestionResults);
             updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                             reader.result, data.timestampText); //MongoDB
           };
@@ -956,13 +907,13 @@ function completeSession() {
         } else {
           // Timeout - send without recording
           console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
-          const fullArray = formatQuestionResultsArray();
+          const fullArray = formatQuestionResultsArray(updatedQuestionResults);
           updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
       }).catch(function(err) {
         console.error("❌ Error checking recording:", err);
-        const fullArray = formatQuestionResultsArray();
+        const fullArray = formatQuestionResultsArray(updatedQuestionResults);
         updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
@@ -972,7 +923,7 @@ function completeSession() {
     setTimeout(checkRecordingReady, 200);
   } else {
     // No recording, send immediately
-    const fullArray = formatQuestionResultsArray();
+    const fullArray = formatQuestionResultsArray(updatedQuestionResults);
     updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                     null, null); //MongoDB
   }
