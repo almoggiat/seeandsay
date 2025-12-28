@@ -209,71 +209,82 @@ React.useEffect(() => {
   };
 
   const confirmVoiceIdentifier = async function() {
-    // Don't stop recording - keep it continuous!
-    // Just get a snapshot of the current recording for validation
+    // Stop the reading recording
     if (permission && sessionRecordingStarted) {
-      // Get current recording time to calculate verification duration
-      const verificationStartTime = SessionRecorder.getRecordingStartTime();
-      const currentTime = Date.now();
-      const verificationDuration = currentTime - verificationStartTime;
-      
-      console.log("📏 Verification duration so far:", verificationDuration, "ms");
-      
-      // Get a temporary snapshot of the current recording for backend validation
-      // Recording continues uninterrupted
-      try {
-        const tempBlob = await SessionRecorder.getCurrentRecordingBlob();
-        
-        if (tempBlob) {
-          // Convert to base64 for backend
-          const reader = new FileReader();
-          reader.onloadend = async function() {
-            const audioBase64 = reader.result;
-            setReadingRecordingBlob(audioBase64);
-            
-            // Show loading screen while waiting for backend
-            setReadingValidationInProgress(true);
+      SessionRecorder.stopContinuousRecording();
+      console.log("🛑 Stopped reading recording, preparing for validation...");
 
-            // Send to backend for validation
-            const validationResult = await verifySpeaker(idDigits, audioBase64);
-            
-            // Hide loading screen
-            setReadingValidationInProgress(false);
-            
-            // verifySpeaker can return:
-            // - null: no backend connection (for testing)
-            // - {success: true, parentSpeaker: ...}: valid
-            // - {success: false, error: ...}: invalid
-            // Convert to boolean/null format expected by the UI
-            if (validationResult === null) {
-              // No connection - show options
-              setReadingValidationResult(null);
-              setReadingValidated(false);
-            } else if (validationResult && validationResult.success === true) {
-              // Validation succeeded - recording continues, store verification duration for timestamp offset
-              SessionRecorder.setVerificationDuration(verificationDuration);
-              setReadingValidationResult(true);
-              setReadingValidated(true);
-            } else if (validationResult && validationResult.success === false) {
-              // Validation failed - will restart recording
-              setReadingValidationResult(false);
-              setReadingValidated(false);
-            } else {
-              // Fallback: treat as no connection
-              setReadingValidationResult(null);
-              setReadingValidated(false);
-            }
-          };
-          reader.readAsDataURL(tempBlob);
-        } else {
-          setReadingValidationResult(null);
-          setReadingValidated(false);
+      // Wait for recording to be processed and converted to MP3
+      // Poll until recording is ready (similar to completeSession)
+      var pollAttempts = 0;
+      var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
+
+      var checkRecordingReady = async function() {
+        pollAttempts++;
+
+        try {
+          const recordingData = await SessionRecorder.getRecordingAndText();
+          if (recordingData && recordingData.recordingBlob) {
+            console.log("✅ Reading recording ready after " + pollAttempts + " attempts");
+            // Convert blob to base64
+            const reader = new FileReader();
+            reader.onloadend = async function() {
+              const audioBase64 = reader.result;
+              setReadingRecordingBlob(audioBase64);
+
+              // Show loading screen while waiting for backend
+              setReadingValidationInProgress(true);
+
+              // Send to backend for validation
+              const validationResult = await verifySpeaker(idDigits,audioBase64);
+
+              // Hide loading screen
+              setReadingValidationInProgress(false);
+
+              // verifySpeaker can return:
+              // - null: no backend connection (for testing)
+              // - {success: true, parentSpeaker: ...}: valid
+              // - {success: false, error: ...}: invalid
+              // Convert to boolean/null format expected by the UI
+              if (validationResult === null) {
+                // No connection - show options
+                setReadingValidationResult(null);
+                setReadingValidated(false);
+              } else if (validationResult && validationResult.success === true) {
+                setReadingValidationResult(true);
+                setReadingValidated(true);
+              } else if (validationResult && validationResult.success === false) {
+                setReadingValidationResult(false);
+                setReadingValidated(false);
+              } else {
+                // Fallback: treat as no connection
+                setReadingValidationResult(null);
+                setReadingValidated(false);
+              }
+            };
+            reader.readAsDataURL(recordingData.recordingBlob);
+          } else if (pollAttempts < maxAttempts) {
+            // Not ready yet, check again in 100ms
+            setTimeout(checkRecordingReady, 100);
+          } else {
+            // Timeout - treat as no connection
+            console.warn("⚠️ Reading recording conversion timeout");
+            setReadingValidationResult(null);
+            setReadingValidated(false);
+          }
+        } catch (err) {
+          console.error("Error getting reading recording:", err);
+          if (pollAttempts < maxAttempts) {
+            setTimeout(checkRecordingReady, 100);
+          } else {
+            setReadingValidationResult(null);
+            setReadingValidated(false);
+          }
         }
-      } catch (err) {
-        console.error("Error getting verification recording:", err);
-        setReadingValidationResult(null);
-        setReadingValidated(false);
-      }
+      };
+
+      // Start polling after a small initial delay
+      setTimeout(checkRecordingReady, 200);
     } else {
       // No recording, skip validation
       setReadingValidationResult(null);
@@ -282,23 +293,34 @@ React.useEffect(() => {
   };
   
   const handleReadingValidationContinue = async function() {
-    // Recording is already continuous - no need to restart!
-    // Just mark question 1 start (timestamp will account for verification duration)
-    if (permission && sessionRecordingStarted) {
-      // Recording is already running continuously from verification
-      // Mark question 1 start - it will use verification duration as offset
-      setTimeout(function() {
-        if (questions.length > 0) {
-          const firstQuestion = questions[0];
-          if (firstQuestion) {
-            SessionRecorder.markQuestionStart(firstQuestion.query_number);
-            console.log("📝 Marked question 1 start (recording already continuous from verification)");
+    // Restart recording for the actual test
+    if (permission) {
+      // Clean up old recording data
+      SessionRecorder.cleanup();
+      
+      // Reset timestamps so they count from question 1
+      SessionRecorder.resetTimestamps();
+      
+      // Start new recording for the test
+      const started = await SessionRecorder.startContinuousRecording();
+      if (started) {
+        setSessionRecordingStarted(true);
+        console.log("✅ Started test recording");
+        
+        // Mark question 1 start timestamp after a brief delay to ensure recording is active
+        setTimeout(function() {
+          if (questions.length > 0) {
+            const firstQuestion = questions[0];
+            if (firstQuestion) {
+              SessionRecorder.markQuestionStart(firstQuestion.query_number);
+              console.log("📝 Marked question 1 start at test start");
+            }
           }
-        }
-      }, 100);
-    } else if (microphoneSkipped) {
+        }, 100);
+      }
+    } else {
       // Even without recording, mark question 1 if microphone was skipped
-      if (questions.length > 0) {
+      if (questions.length > 0 && microphoneSkipped) {
         const firstQuestion = questions[0];
         if (firstQuestion) {
           SessionRecorder.markQuestionStart(firstQuestion.query_number);
@@ -313,19 +335,19 @@ React.useEffect(() => {
   };
   
   const handleReadingValidationRetry = async function() {
-    // Reset states and restart recording (discard previous attempt)
+    // Reset states and restart recording
     setReadingValidated(false);
     setReadingValidationResult(null);
     setReadingRecordingBlob(null);
     
-    // Restart recording from the beginning
+    // Restart recording
     if (permission) {
-      SessionRecorder.cleanup(true); // true = clear verification duration
+      SessionRecorder.cleanup();
       SessionRecorder.resetTimestamps();
       const started = await SessionRecorder.startContinuousRecording();
       if (started) {
         setSessionRecordingStarted(true);
-        console.log("🔄 Restarted recording (previous verification discarded)");
+        console.log("🔄 Restarted reading recording");
       }
     }
   };
@@ -621,7 +643,6 @@ const playQuestionOne = function()  {
     }
     
     // Track question result in full array
-    let updatedQuestionResults = questionResults;
     if (currentQuestion) {
       const questionNumber = currentQuestion.query_number;
       // Map result to string format
@@ -634,23 +655,18 @@ const playQuestionOne = function()  {
         resultString = "wrong";
       }
       
-      // Create updated array locally to avoid sync issues
-      updatedQuestionResults = [...questionResults, {
+      // Add to question results array
+      setQuestionResults([...questionResults, {
         questionNumber: questionNumber,
         result: resultString
-      }];
-      
-      // Add to question results array
-      setQuestionResults(updatedQuestionResults);
-      console.log("Recorded result for question", questionNumber, ":", resultString);
+      }]);
     }
     
     // Simply move to next question or complete session
     if (currentIdx < questions.length - 1) {
       updateCurrentQuestionIndex(currentIdx + 1);
     } else {
-      // Pass updated results to avoid sync issues with state
-      completeSession(updatedQuestionResults);
+      completeSession();
     }
   };
 
@@ -661,13 +677,12 @@ const playQuestionOne = function()  {
   // =============================================================================
 
   // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
-  function formatQuestionResultsArray(resultsArray) {
-    const resultsToFormat = resultsArray || questionResults;
-    if (resultsToFormat.length === 0) {
+  function formatQuestionResultsArray() {
+    if (questionResults.length === 0) {
       return "[]";
     }
 
-    const formattedTuples = resultsToFormat.map(function(item) {
+    const formattedTuples = questionResults.map(function(item) {
       const questionNum = parseInt(item.questionNumber, 10);
       return "(" + questionNum + ",\"" + item.result + "\")";
     });
@@ -870,7 +885,7 @@ const playQuestionOne = function()  {
     completeSession();
   }
 
-function completeSession(updatedQuestionResults) {
+function completeSession() {
   setSessionCompleted(true);
   setImages([]);
   
@@ -896,7 +911,7 @@ function completeSession(updatedQuestionResults) {
           console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
           const reader = new FileReader();
           reader.onloadend = function() {
-            const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+            const fullArray = formatQuestionResultsArray();
             updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                             reader.result, data.timestampText); //MongoDB
           };
@@ -907,13 +922,13 @@ function completeSession(updatedQuestionResults) {
         } else {
           // Timeout - send without recording
           console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
-          const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+          const fullArray = formatQuestionResultsArray();
           updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
       }).catch(function(err) {
         console.error("❌ Error checking recording:", err);
-        const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+        const fullArray = formatQuestionResultsArray();
         updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
@@ -923,7 +938,7 @@ function completeSession(updatedQuestionResults) {
     setTimeout(checkRecordingReady, 200);
   } else {
     // No recording, send immediately
-    const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+    const fullArray = formatQuestionResultsArray();
     updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                     null, null); //MongoDB
   }

@@ -17,9 +17,6 @@ const SessionRecorder = (function() {
   // Pause tracking
   let pauseStartTime = null;
   let totalPausedTime = 0; // Total milliseconds paused
-  
-  // Verification duration tracking (for timestamp offset)
-  let verificationRecordingDuration = 0; // Duration in milliseconds
 
   // Get browser-supported audio mime type (prioritize MP4/AAC for MP3-compatible output)
   function getSupportedMimeType() {
@@ -126,41 +123,6 @@ const SessionRecorder = (function() {
     return getFileExtension(currentMimeType);
   }
 
-  // Store verification duration (for timestamp offset)
-  function setVerificationDuration(durationMs) {
-    verificationRecordingDuration = durationMs;
-    localStorage.setItem("verificationRecordingDuration", durationMs.toString());
-    console.log("✅ Stored verification duration:", durationMs, "ms");
-  }
-  
-  // Get recording start time
-  function getRecordingStartTime() {
-    if (recordingStartTime) {
-      return recordingStartTime;
-    }
-    // Try to recover from localStorage
-    const stored = localStorage.getItem("recordingStartTime");
-    if (stored) {
-      return parseInt(stored, 10);
-    }
-    return Date.now(); // Fallback to current time
-  }
-  
-  // Get current recording blob (snapshot for validation)
-  async function getCurrentRecordingBlob() {
-    if (!mediaRecorder || !isRecording) {
-      return null;
-    }
-    
-    // If paused, we can still get the current chunks
-    if (audioChunks.length === 0) {
-      return null;
-    }
-    
-    const blobType = currentMimeType || (audioChunks[0] && audioChunks[0].type) || "audio/webm";
-    return new Blob(audioChunks, { type: blobType });
-  }
-
   // Start continuous session recording
   async function startContinuousRecording() {
     try {
@@ -190,10 +152,6 @@ const SessionRecorder = (function() {
       recorder.onstop = async function() {
         const blobType = preferredMime || currentMimeType || (audioChunks[0] && audioChunks[0].type) || "audio/webm";
         const originalBlob = new Blob(audioChunks, { type: blobType });
-        
-        console.log("🛑 Recording stopped, converting to MP3...");
-        console.log("   Recording blob size:", originalBlob.size, "bytes");
-        console.log("   Audio chunks count:", audioChunks.length);
         
         // Convert to MP3
         console.log("🎵 Converting recording to MP3...");
@@ -237,7 +195,7 @@ const SessionRecorder = (function() {
       // Store in localStorage
       localStorage.setItem("sessionRecordingActive", "true");
       localStorage.setItem("recordingStartTime", recordingStartTime.toString());
-      localStorage.setItem("totalPausedTime", 0);
+      localStorage.setItem("totalPausedTime", 0)
 
       console.log("🎙️ Started continuous session recording");
       return true;
@@ -418,21 +376,26 @@ const SessionRecorder = (function() {
         totalPausedTime = parseInt(storedPausedTime, 10);
       }
       console.log(totalPausedTime, "total")
-    }
-    
-    // Recover verification duration if not in memory
-    if (verificationRecordingDuration === 0) {
-      const storedVerificationDuration = localStorage.getItem("verificationRecordingDuration");
-      if (storedVerificationDuration) {
-        verificationRecordingDuration = parseInt(storedVerificationDuration, 10);
-      }
+
     }
     
     const currentTime = Date.now();
-    const elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
+    let elapsedMs = currentTime - recordingStartTime - totalPausedTime; // Exclude paused time
     
-    // Mark the question at the actual elapsed time
-    // The timestamp text generation will adjust so question 1 = 0 seconds
+    // Check if this is the first question 1 marking - ensure it's always at 0 seconds
+    // Check if there are any existing question 1 timestamps (handle both string and number)
+    const hasQuestion1 = questionTimestamps.some(function(item) {
+      const itemNum = String(item.questionNumber);
+      const currentNum = String(questionNumber);
+      return itemNum === "1" || itemNum === currentNum;
+    });
+    
+    // If this is question 1 and it's the first time marking it, set to 0
+    const questionNumStr = String(questionNumber);
+    if (questionNumStr === "1" && !hasQuestion1) {
+      elapsedMs = 0;
+    }
+    
     questionTimestamps.push({
       questionNumber: questionNumber,
       timestamp: elapsedMs
@@ -454,7 +417,6 @@ const SessionRecorder = (function() {
 
   // Generate timestamp text file content
   // Returns format: [(1,0),(2,65),(3,127)] - Python tuple style
-  // Question 1 should always be 0 seconds (relative to question 1 start, not recording start)
   function generateTimestampText() {
     // Try to load from localStorage if not in memory
     if (questionTimestamps.length === 0) {
@@ -477,21 +439,9 @@ const SessionRecorder = (function() {
       return item.questionNumber !== "PAUSED" && item.questionNumber !== "RESUMED";
     });
     
-    if (questionEntries.length === 0) {
-      return "[]";
-    }
-    
-    // Find the first question 1 timestamp to use as offset (so question 1 = 0 seconds)
-    const firstQuestion1 = questionEntries.find(function(item) {
-      return String(item.questionNumber) === "1";
-    });
-    const offsetMs = firstQuestion1 ? firstQuestion1.timestamp : 0;
-    
     // Convert to Python tuple format: [(1,0),(2,65),(3,127)]
-    // Subtract offset so question 1 starts at 0 seconds
     const timestampTuples = questionEntries.map(function(item) {
-      const adjustedTimestamp = item.timestamp - offsetMs;
-      const timeInSeconds = Math.floor(adjustedTimestamp / 1000); // Convert ms to seconds, round down
+      const timeInSeconds = Math.floor(item.timestamp / 1000); // Convert ms to seconds, round down
       const questionNum = parseInt(item.questionNumber, 10);
       return "(" + questionNum + "," + timeInSeconds + ")";
     });
@@ -520,7 +470,6 @@ const SessionRecorder = (function() {
   function getTimestampText() {
     return generateTimestampText();
   }
-
 
   // Get recording and text data for backend upload
   async function getRecordingAndText() {
@@ -556,8 +505,7 @@ const SessionRecorder = (function() {
   }
 
   // Clean up on session end
-  // If clearVerification is true, also clears verification recording (used on retry)
-  function cleanup(clearVerification) {
+  function cleanup() {
     stopContinuousRecording();
     localStorage.removeItem("sessionRecordingActive");
     localStorage.removeItem("sessionRecordingUrl");
@@ -568,19 +516,12 @@ const SessionRecorder = (function() {
     localStorage.removeItem("recordingPaused");
     localStorage.removeItem("pauseStartTime");
     localStorage.removeItem("totalPausedTime");
-    
-    // Only clear verification duration if explicitly requested (on retry)
-    if (clearVerification) {
-      localStorage.removeItem("verificationRecordingDuration");
-      verificationRecordingDuration = 0;
-    }
-    
     recordingStartTime = null;
     questionTimestamps = [];
     totalPausedTime = 0;
     pauseStartTime = null;
     isPaused = false;
-    console.log("🧹 Cleaned up session recording" + (clearVerification ? " (including verification)" : ""));
+    console.log("🧹 Cleaned up session recording");
   }
 
   // Get final recording URL (synchronous version for immediate use)
@@ -622,9 +563,6 @@ const SessionRecorder = (function() {
     getTimestampText: getTimestampText,
     getRecordingAndText: getRecordingAndText,
     resetTimestamps: resetTimestamps,
-    setVerificationDuration: setVerificationDuration,
-    getRecordingStartTime: getRecordingStartTime,
-    getCurrentRecordingBlob: getCurrentRecordingBlob,
     cleanup: cleanup
   };
 })();
