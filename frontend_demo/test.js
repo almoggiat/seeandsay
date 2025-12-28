@@ -30,6 +30,8 @@ function Test({ allQuestions }) {
   const [readingValidationResult, setReadingValidationResult] = usePersistentState("readingValidationResult", null); // null = no connection, true = valid, false = invalid
   const [readingRecordingBlob, setReadingRecordingBlob] = usePersistentState("readingRecordingBlob", null);
   const [readingValidationInProgress, setReadingValidationInProgress] = React.useState(false);
+  // Store the verification audio blob for combining with test audio
+  const [verificationAudioBlob, setVerificationAudioBlob] = React.useState(null);
   
 
 
@@ -231,6 +233,9 @@ React.useEffect(() => {
             reader.onloadend = async function() {
               const audioBase64 = reader.result;
               setReadingRecordingBlob(audioBase64);
+              
+              // Store the verification blob for later combining with test audio
+              setVerificationAudioBlob(recordingData.recordingBlob);
 
               // Show loading screen while waiting for backend
               setReadingValidationInProgress(true);
@@ -339,6 +344,7 @@ React.useEffect(() => {
     setReadingValidated(false);
     setReadingValidationResult(null);
     setReadingRecordingBlob(null);
+    setVerificationAudioBlob(null); // Clear verification blob on retry
     
     // Restart recording
     if (permission) {
@@ -643,6 +649,7 @@ const playQuestionOne = function()  {
     }
     
     // Track question result in full array
+    let updatedQuestionResults = questionResults;
     if (currentQuestion) {
       const questionNumber = currentQuestion.query_number;
       // Map result to string format
@@ -655,18 +662,23 @@ const playQuestionOne = function()  {
         resultString = "wrong";
       }
       
-      // Add to question results array
-      setQuestionResults([...questionResults, {
+      // Create updated array locally to avoid sync issues
+      updatedQuestionResults = [...questionResults, {
         questionNumber: questionNumber,
         result: resultString
-      }]);
+      }];
+      
+      // Add to question results array
+      setQuestionResults(updatedQuestionResults);
+      console.log("Recorded result for question", questionNumber, ":", resultString);
     }
     
     // Simply move to next question or complete session
     if (currentIdx < questions.length - 1) {
       updateCurrentQuestionIndex(currentIdx + 1);
     } else {
-      completeSession();
+      // Pass updated results to avoid sync issues with state
+      completeSession(updatedQuestionResults);
     }
   };
 
@@ -677,17 +689,98 @@ const playQuestionOne = function()  {
   // =============================================================================
 
   // Format question results as Python tuple format: [(1,"correct"),(2,"partly"),(3,"wrong")]
-  function formatQuestionResultsArray() {
-    if (questionResults.length === 0) {
+  function formatQuestionResultsArray(resultsArray) {
+    const resultsToFormat = resultsArray || questionResults;
+    if (resultsToFormat.length === 0) {
       return "[]";
     }
 
-    const formattedTuples = questionResults.map(function(item) {
+    const formattedTuples = resultsToFormat.map(function(item) {
       const questionNum = parseInt(item.questionNumber, 10);
       return "(" + questionNum + ",\"" + item.result + "\")";
     });
 
     return "[" + formattedTuples.join(",") + "]";
+  }
+
+  // Combine two audio blobs into one
+  async function combineAudioBlobs(blob1, blob2) {
+    if (!blob1 && !blob2) return null;
+    if (!blob1) return blob2;
+    if (!blob2) return blob1;
+    
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Decode both audio blobs
+      const arrayBuffer1 = await blob1.arrayBuffer();
+      const arrayBuffer2 = await blob2.arrayBuffer();
+      const audioBuffer1 = await audioContext.decodeAudioData(arrayBuffer1);
+      const audioBuffer2 = await audioContext.decodeAudioData(arrayBuffer2);
+      
+      // Get the sample rate (use the higher one)
+      const sampleRate = Math.max(audioBuffer1.sampleRate, audioBuffer2.sampleRate);
+      
+      // Calculate total length
+      const totalLength = audioBuffer1.length + audioBuffer2.length;
+      
+      // Create a new audio buffer with combined length
+      const combinedBuffer = audioContext.createBuffer(
+        audioBuffer1.numberOfChannels,
+        totalLength,
+        sampleRate
+      );
+      
+      // Copy first audio
+      for (let channel = 0; channel < audioBuffer1.numberOfChannels; channel++) {
+        const channelData = combinedBuffer.getChannelData(channel);
+        const sourceData = audioBuffer1.getChannelData(channel);
+        for (let i = 0; i < sourceData.length; i++) {
+          channelData[i] = sourceData[i];
+        }
+      }
+      
+      // Copy second audio (append after first)
+      const offset = audioBuffer1.length;
+      for (let channel = 0; channel < audioBuffer2.numberOfChannels; channel++) {
+        const channelData = combinedBuffer.getChannelData(channel);
+        const sourceData = audioBuffer2.getChannelData(channel);
+        for (let i = 0; i < sourceData.length; i++) {
+          channelData[offset + i] = sourceData[i];
+        }
+      }
+      
+      // Convert back to blob using lamejs (MP3)
+      const samples = combinedBuffer.getChannelData(0);
+      const int16Samples = new Int16Array(samples.length);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        int16Samples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      
+      const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+      const sampleBlockSize = 1152;
+      const mp3Data = [];
+      
+      for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
+        const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
+        const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+        if (mp3buf.length > 0) {
+          mp3Data.push(mp3buf);
+        }
+      }
+      
+      const mp3buf = mp3encoder.flush();
+      if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+      
+      return new Blob(mp3Data, { type: "audio/mpeg" });
+    } catch (err) {
+      console.error("Error combining audio:", err);
+      // Fallback: return the test audio if combination fails
+      return blob2 || blob1;
+    }
   }
   // Test to convert for a real Array
 //  function formatQuestionResultsArray() {
@@ -885,7 +978,7 @@ const playQuestionOne = function()  {
     completeSession();
   }
 
-function completeSession() {
+function completeSession(updatedQuestionResults) {
   setSessionCompleted(true);
   setImages([]);
   
@@ -903,32 +996,55 @@ function completeSession() {
     var pollAttempts = 0;
     var maxAttempts = 50; // Max 5 seconds (50 * 100ms)
     
-    var checkRecordingReady = function() {
+    var checkRecordingReady = async function() {
       pollAttempts++;
       
-      SessionRecorder.getRecordingAndText().then(function(data) {
+      SessionRecorder.getRecordingAndText().then(async function(data) {
         if (data && data.recordingBlob) {
           console.log("✅ Recording ready after "+pollAttempts+" attempts= "+ (pollAttempts * 100) + "ms");
+          
+          // Combine verification audio with test audio if verification audio exists
+          let finalBlob = data.recordingBlob;
+          if (verificationAudioBlob) {
+            console.log("🔗 Combining verification audio with test audio...");
+            finalBlob = await combineAudioBlobs(verificationAudioBlob, data.recordingBlob);
+            console.log("✅ Audio combined successfully");
+          }
+          
+          // Store final audio (combined or test-only) for download
+          const reader2 = new FileReader();
+          reader2.onloadend = function() {
+            const base64data = reader2.result;
+            localStorage.setItem("sessionRecordingFinal", JSON.stringify({
+              audio: base64data,
+              mimeType: "audio/mpeg",
+              timestamp: Date.now()
+            }));
+            const url = URL.createObjectURL(finalBlob);
+            localStorage.setItem("sessionRecordingUrl", url);
+          };
+          reader2.readAsDataURL(finalBlob);
+          
           const reader = new FileReader();
           reader.onloadend = function() {
-            const fullArray = formatQuestionResultsArray();
+            const fullArray = formatQuestionResultsArray(updatedQuestionResults);
             updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                             reader.result, data.timestampText); //MongoDB
           };
-          reader.readAsDataURL(data.recordingBlob);
+          reader.readAsDataURL(finalBlob);
         } else if (pollAttempts < maxAttempts) {
           // Not ready yet, check again in 100ms
           setTimeout(checkRecordingReady, 100);
         } else {
           // Timeout - send without recording
           console.warn("⚠️ Recording conversion timeout after "+maxAttempts+" attempts= " + (maxAttempts * 100) + "ms");
-          const fullArray = formatQuestionResultsArray();
+          const fullArray = formatQuestionResultsArray(updatedQuestionResults);
           updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                           null, null); //MongoDB
         }
       }).catch(function(err) {
         console.error("❌ Error checking recording:", err);
-        const fullArray = formatQuestionResultsArray();
+        const fullArray = formatQuestionResultsArray(updatedQuestionResults);
         updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                         null, null); //MongoDB
       });
@@ -938,7 +1054,7 @@ function completeSession() {
     setTimeout(checkRecordingReady, 200);
   } else {
     // No recording, send immediately
-    const fullArray = formatQuestionResultsArray();
+    const fullArray = formatQuestionResultsArray(updatedQuestionResults);
     updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                     null, null); //MongoDB
   }

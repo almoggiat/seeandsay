@@ -78,6 +78,13 @@ function App() {
     localStorage.removeItem("readingValidationResult");
     localStorage.removeItem("readingRecordingBlob");
 
+
+    //resultsrelated
+    localStorage.removeItem("correctAnswers");
+    localStorage.removeItem("partialAnswers");
+    localStorage.removeItem("wrongAnswers");
+    localStorage.removeItem("questionResults");
+
     window.location.reload();
   }
   
