@@ -68,7 +68,7 @@ class AddTestRequest(BaseModel):
 class SpeakerVerificationRequest(BaseModel):
     userId: int
     audioFile64:str
-    # returns {"success": True, "parent_speaker": parent_speaker}
+    # returns {"success": True, "parent_speaker": parent_speaker, "updated_transcription: updated_transcription }
 
 
 
@@ -98,7 +98,7 @@ def add_test(test: AddTestRequest):
 
     updated_transcription = speaker_verification(test.audioFile64)
     logger.warning(
-        f"Speaker verification data for user: {test.userId}\n{updated_transcription}"
+        f"Speaker verification results for user: {test.userId}\n{updated_transcription}"
     )
 
     success = storage.add_test_to_user(
