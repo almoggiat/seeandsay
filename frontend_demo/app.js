@@ -72,17 +72,19 @@ function App() {
     localStorage.removeItem("sessionRecordingChunks");
     localStorage.removeItem("recordingStartTime");
     localStorage.removeItem("questionTimestamps");
-    localStorage.removeItem("verificationRecordingDuration");
-    localStorage.removeItem("recordingPaused");
-    localStorage.removeItem("pauseStartTime");
-    localStorage.removeItem("totalPausedTime");
 
     // validation related
     localStorage.removeItem("readingValidated");
     localStorage.removeItem("readingValidationResult");
     localStorage.removeItem("readingRecordingBlob");
-    // results related
+
+
+    //resultsrelated
+    localStorage.removeItem("correctAnswers");
+    localStorage.removeItem("partialAnswers");
+    localStorage.removeItem("wrongAnswers");
     localStorage.removeItem("questionResults");
+
     window.location.reload();
   }
   
