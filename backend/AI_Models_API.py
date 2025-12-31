@@ -166,7 +166,6 @@ def speaker_recognition(transcription):
 def speaker_verification(base64_audio):
     audio_bytes = decode_base64_to_bytes(base64_audio)
     transcription = speechmatics_runner_from_bytes(audio_bytes)
-    print (transcription)
     result = speaker_recognition(transcription)
 
     return result
