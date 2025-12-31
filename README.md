@@ -19,7 +19,7 @@
 ### AI_Models_API.py
 הקוד מכיל את הפונקציות שאותם הסרבר מריץ מאחורי הקלעים.
 
-*Starts from **speaker_verification** --> **decode_base64_to_bytes** --> **speechmatics_runner_from_bytes** --> **speaker_recognition**
+* Starts from **speaker_verification** --> **decode_base64_to_bytes** --> **speechmatics_runner_from_bytes** --> **speaker_recognition**
 When:
 * **speaker_verification** --> Wrapper Function
 * **decode_base64_to_bytes** --> Takes the base64 audio file from Frontend and converts to bytes. Returns the bytes.
