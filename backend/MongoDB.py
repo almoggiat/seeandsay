@@ -73,28 +73,7 @@ class SeeSayMongoStorage:
             logger.error(f"❌ MongoDB connection error: {e}")
             raise
 
-    ## Audio FILE Storage --- NOT IN USE (We save string base64)
-    # def upload_audio(self, audio_file_path):
-    #     """Uploads audio file to GridFS and returns the file_id."""
-    #     if not os.path.exists(audio_file_path):
-    #         raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
-    #
-    #     with open(audio_file_path, "rb") as f:
-    #         file_id = self.fs.put(f, filename=os.path.basename(audio_file_path))
-    #     logger.info(f"🎵 Audio uploaded to GridFS with _id: {file_id}")
-    #     return file_id
-    # def download_audio(self, file_id, output_path):
-    #     file_data = self.fs.get(ObjectId(file_id))
-    #     with open(output_path, "wb") as f:
-    #         f.write(file_data.read())
-    #     logger.info(f"🎧 Audio ({file_id}) downloaded to {output_path}")
-    #     ## usage:
-    #     # audio_id = user_doc['tests'][<testNum>]['audioFileId']
-    #     # db._download_audio(audio_id, "recovered_audio.mp3")
 
-    import base64
-    from pymongo import MongoClient
-    from datetime import datetime
 
     def get_user_audioFile_from_64base(self, user_id, test_index=-1, output_path="output_audio.mp3"):
         """

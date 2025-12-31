@@ -32,7 +32,7 @@ def Question_TTS_Maker(path,TEXT_COLUMN_HEADER):
 
 
     # Folder to save the resulting MP3 files
-    OUTPUT_DIR = "/home/tom/PycharmProjects/seeandsay/frontend/questions_audio"
+    OUTPUT_DIR = "frontend_demo/resources/questions_audio"
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     file_counter = 1
