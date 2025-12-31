@@ -70,7 +70,8 @@ class SpeakerVerificationRequest(BaseModel):
     audioFile64:str
     # returns {"success": True, "parent_speaker": parent_speaker, "updated_transcription: updated_transcription }
 
-
+class GetFinalTranscriptionRequest(BaseModel):
+    userId: int
 
 
 
@@ -89,8 +90,10 @@ def create_user(user: CreateUserRequest):
 
     if not success:
         raise HTTPException(status_code=400, detail="User already exists or could not be added")
-    user = storage.get_user_config(user.userId)
-    return {"success": True, "user": user}
+    # user = storage.get_user_config(user.userId)
+    return {"success": True
+            # "user": user
+            }
 
 @app.post("/api/addTestToUser")
 def add_test(test: AddTestRequest):
@@ -115,8 +118,12 @@ def add_test(test: AddTestRequest):
     )
     if not success:
         raise HTTPException(status_code=404, detail="User not found or exam not added")
-    user = storage.get_user_config(test.userId)
-    return {"success": True, "user": user}
+    # user = storage.get_user_config(test.userId)
+    return {
+        "success": True,
+        # "user": user,
+        "transcription": updated_transcription["updated_transcription"]
+    }
 
 
 

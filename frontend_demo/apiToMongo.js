@@ -27,37 +27,6 @@ async function createUser(userId, userName) {
   }
 }
 
-//// validate reading recording with backend
-//async function validateReadingRecording(audioBase64) {
-//  // For now, automatically act as if there is no backend connection
-//  // This will be replaced with actual backend call later
-//  return null; // null means no connection
-//
-//  // When backend is ready, uncomment and modify this:
-//  /*
-//  const url = "https://seeandsay-backend.onrender.com/api/validateReading";
-//
-//  try {
-//    const response = await fetch(url, {
-//      method: "POST",
-//      headers: { "Content-Type": "application/json" },
-//      body: JSON.stringify({
-//        audioFile64: audioBase64
-//      }),
-//    });
-//
-//    if (!response.ok) {
-//      throw new Error(`Server responded with status ${response.status}`);
-//    }
-//
-//    const result = await response.json();
-//    return result.valid === true; // true or false
-//  } catch (err) {
-//    console.error("❌ Failed to validate reading:", err);
-//    return null; // null means no connection
-//  }
-//  */
-//}
 
 // update user info with test results, audio base64, and timestamps
 // full_array --> is the new, full array of right and wrong
