@@ -2,6 +2,7 @@
 # __See&Say__
 קובץ מפרט לפרויקט.
 
+## DashBoard
 
 ## FrontEnd
 ### apiToMongo.js
@@ -24,11 +25,11 @@
 הקוד מכיל את הפונקציות שאותם הסרבר מריץ מאחורי הקלעים.
 
 * Starts from **speaker_verification** --> **decode_base64_to_bytes** --> **speechmatics_runner_from_bytes** --> **speaker_recognition**
-When:
-* **speaker_verification** --> Wrapper Function
-* **decode_base64_to_bytes** --> Takes the base64 audio file from Frontend and converts to bytes. Returns the bytes.
-* **speechmatics_runner_from_bytes** --> Gets the bytes, stores on temp file, runs the transcription model. Returns the transcription.
-* **speaker_recognition** --> Gets the transcription, recognizes the SPEAK :S(i) who said the starting statement, marks him as "parent".
+* When:
+1. **speaker_verification** --> Wrapper Function
+2. **decode_base64_to_bytes** --> Takes the base64 audio file from Frontend and converts to bytes. Returns the bytes.
+3. **speechmatics_runner_from_bytes** --> Gets the bytes, stores on temp file, runs the transcription model. Returns the transcription.
+4. **speaker_recognition** --> Gets the transcription, recognizes the SPEAK :S(i) who said the starting statement, marks him as "parent".
                             The other SPEAKER:S is marked as "child". (Only if 2 speakers were recognized.). Returns dict.
 `
 result["success"], result["parent_speaker"], result["updated_transcription"]
