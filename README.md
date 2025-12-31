@@ -4,6 +4,10 @@
 
 
 ## FrontEnd
+### apiToMongo.js
+* Sends POST requests to the Backend.
+* Being used at user creation, adding test (at end of exam), verification of speaker.
+* Being called from `test.js`
 
 
 
@@ -12,7 +16,7 @@
 .env file && accounts passwords will be sent privately.
 
 ### server.py
-* contains POST functions. --> main Render backend file.
+* contains POST handle functions. --> main Render backend file.
 * user creation, test adding, verification of speaker at the start of the test.
 * server.py uses: `MongoDB.py` & `AI_Models_API.py`
 
