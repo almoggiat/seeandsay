@@ -27,6 +27,10 @@ function Test({ allQuestions, lang, t }) {
   // Track full array of question results: [{questionNumber, result}, ...]
   const [questionResults, setQuestionResults] = usePersistentState("questionResults", []);
 
+  // Transcription state
+  const [transcription, setTranscription] = React.useState(null);
+  const [waitingForTranscription, setWaitingForTranscription] = React.useState(false);
+
   // Microphone persistent
   const [permission, setPermission] = usePersistentState("permission", false);
   const [microphoneSkipped, setMicrophoneSkipped] = usePersistentState("microphoneSkipped", false);
@@ -199,10 +203,7 @@ function Test({ allQuestions, lang, t }) {
       setAgeInvalid(true);
       return;
     }
-    if (id.length != 9) {
-      alert(tr("test.age.invalidId"));
-      return
-    }
+ 
     // Simply confirm age and start with all questions
     setAgeConfirmed(true);
     createUser(idDigits, 'SomeUserName') //MongoDB
@@ -1138,10 +1139,15 @@ function Test({ allQuestions, lang, t }) {
             reader2.readAsDataURL(finalBlob);
 
             const reader = new FileReader();
-            reader.onloadend = function () {
+            reader.onloadend = async function () {
               const fullArray = formatQuestionResultsArray(updatedQuestionResults);
-              updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
+              setWaitingForTranscription(true);
+              const result = await updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
                 reader.result, data.timestampText); //MongoDB
+              if (result && result.transcription) {
+                setTranscription(result.transcription);
+              }
+              setWaitingForTranscription(false);
             };
             reader.readAsDataURL(finalBlob);
           } else if (pollAttempts < maxAttempts) {
@@ -1151,14 +1157,32 @@ function Test({ allQuestions, lang, t }) {
             // Timeout - send without recording
             console.warn("⚠️ Recording conversion timeout after " + maxAttempts + " attempts= " + (maxAttempts * 100) + "ms");
             const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+            setWaitingForTranscription(true);
             updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
-              null, null); //MongoDB
+              null, null).then(function(result) {
+                if (result && result.transcription) {
+                  setTranscription(result.transcription);
+                }
+                setWaitingForTranscription(false);
+              }).catch(function(err) {
+                console.error("Error getting transcription:", err);
+                setWaitingForTranscription(false);
+              }); //MongoDB
           }
         }).catch(function (err) {
           console.error("❌ Error checking recording:", err);
           const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+          setWaitingForTranscription(true);
           updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
-            null, null); //MongoDB
+            null, null).then(function(result) {
+              if (result && result.transcription) {
+                setTranscription(result.transcription);
+              }
+              setWaitingForTranscription(false);
+            }).catch(function(err) {
+              console.error("Error getting transcription:", err);
+              setWaitingForTranscription(false);
+            }); //MongoDB
         });
       };
 
@@ -1167,8 +1191,17 @@ function Test({ allQuestions, lang, t }) {
     } else {
       // No recording, send immediately
       const fullArray = formatQuestionResultsArray(updatedQuestionResults);
+      setWaitingForTranscription(true);
       updateUserTests(idDigits, ageYears, ageMonths, fullArray, correctAnswers, partialAnswers, wrongAnswers,
-        null, null); //MongoDB
+        null, null).then(function(result) {
+          if (result && result.transcription) {
+            setTranscription(result.transcription);
+          }
+          setWaitingForTranscription(false);
+        }).catch(function(err) {
+          console.error("Error getting transcription:", err);
+          setWaitingForTranscription(false);
+        }); //MongoDB
     }
   }
 
@@ -1605,6 +1638,43 @@ function Test({ allQuestions, lang, t }) {
   }
 
   if (sessionCompleted) {
+    // Show waiting screen while transcription is being processed
+    if (waitingForTranscription) {
+      return React.createElement(
+        "div",
+        {
+          className: "session-complete",
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "24px",
+            padding: "48px 32px"
+          }
+        },
+        React.createElement("h2", null, tr("test.done.title")),
+        React.createElement("p", { style: { fontSize: "18px", color: "#666" } },
+          lang === "en" ? "Processing transcription, please wait..." : "מעבד תמלול, אנא המתן..."
+        ),
+        React.createElement("div", {
+          style: {
+            width: "50px",
+            height: "50px",
+            border: "4px solid #f3f3f3",
+            borderTop: "4px solid #4CAF50",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite"
+          }
+        }),
+        React.createElement("style", null, `
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `)
+      );
+    }
+
     const totalAnswered = correctAnswers + partialAnswers + wrongAnswers;
 
     // Download recording function
@@ -1626,9 +1696,49 @@ function Test({ allQuestions, lang, t }) {
       }
     };
 
-    // Download timestamp file function
+    // Download timestamp file function (enhanced with question results and transcription)
     const downloadTimestamps = function () {
-      SessionRecorder.downloadTimestampFile(idDigits);
+      // Get timestamp text from SessionRecorder
+      const timestampText = SessionRecorder.getTimestampText();
+      
+      // Format question results array
+      const questionResultsText = formatQuestionResultsArray(questionResults);
+      
+      // Build the complete text file content
+      let fileContent = "";
+      
+      // Add timestamps section
+      fileContent += "=== Question Timestamps ===\n";
+      fileContent += timestampText + "\n\n";
+      
+      // Add question results section
+      fileContent += "=== Question Results ===\n";
+      fileContent += "Format: [(questionNumber,\"result\"), ...]\n";
+      fileContent += "Results: correct, partly, wrong\n";
+      fileContent += questionResultsText + "\n\n";
+      
+      // Add transcription section if available
+      if (transcription) {
+        fileContent += "=== Transcription ===\n";
+        fileContent += transcription + "\n";
+      } else {
+        fileContent += "=== Transcription ===\n";
+        fileContent += "Transcription not available yet.\n";
+      }
+      
+      // Create and download the file
+      const blob = new Blob([fileContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "session_data_" + idDigits + "_" + Date.now() + ".txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log("📥 Downloaded session data file with timestamps, results, and transcription");
     };
 
     // Download both files function
@@ -1646,9 +1756,9 @@ function Test({ allQuestions, lang, t }) {
         console.log("📥 Downloaded session recording as MP3");
       }
 
-      // Download timestamps after a short delay to avoid browser blocking
+      // Download enhanced text file after a short delay to avoid browser blocking
       setTimeout(function () {
-        SessionRecorder.downloadTimestampFile(idDigits);
+        downloadTimestamps();
       }, 500);
     };
 
@@ -1782,6 +1892,33 @@ function Test({ allQuestions, lang, t }) {
         })
       )
 
+      : null,
+    // DevMode entry button (shown when devMode is off)
+    !devMode
+      ? React.createElement(
+        "button",
+        {
+          onClick: function () {
+            setDevMode(true);
+          },
+          style: {
+            position: "fixed",
+            top: "10px",
+            right: "10px",
+            zIndex: 10000,
+            backgroundColor: "#4CAF50",
+            color: "white",
+            padding: "8px 16px",
+            border: "none",
+            borderRadius: "5px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            fontSize: "14px",
+            boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+          }
+        },
+        "Dev Mode"
+      )
       : null,
     // Paused overlay
     isPaused
