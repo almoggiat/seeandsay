@@ -93,9 +93,9 @@ window.I18N = (function () {
             "test.done.title": "כל הכבוד!",
             "test.done.body": "הילד ענה {correct} נכון לבד, {partial} נכון בעזרתכם, ו-{wrong} לא נכון.",
             "test.done.total": "סה\"כ שאלות שנענו: {answered} / {total}",
-            "test.done.downloadBoth": "📦 הורדת הכל (MP3 + זמנים)",
+            "test.done.downloadBoth": "📦 הורדת הכל (MP3 + פרטי הקלטה)",
             "test.done.downloadRecording": "📥 הורדת הקלטה בלבד (MP3)",
-            "test.done.downloadTimestamps": "📄 הורדת זמנים בלבד",
+            "test.done.downloadTimestamps": "📄 הורדת פרטי הקלטה בלבד",
 
             "dev.off": "כבה מצב מפתח"
         },
