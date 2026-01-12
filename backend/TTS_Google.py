@@ -27,6 +27,59 @@ def Play_Audio(audio_file_path):
         print("Make sure ffmpeg is installed and accessible in your system's PATH.")
 
 
+def Question_TTS_Maker_Specific(
+    path,
+    TEXT_COLUMN_HEADER,
+    rows=None,          # e.g. [1, 5, 10]
+    start_row=None,     # e.g. 3
+    end_row=None        # e.g. 8
+):
+    import os
+    import csv
+    from gtts import gTTS
+
+    OUTPUT_DIR = "/home/tom/PycharmProjects/seeandsay/frontend_demo/resources/questions_audio"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    try:
+        with open(path, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+
+            if TEXT_COLUMN_HEADER not in reader.fieldnames:
+                print(f"Error: Column '{TEXT_COLUMN_HEADER}' not found.")
+                return
+
+            print("Starting selective TTS generation...")
+
+            for idx, row in enumerate(reader, start=1):
+                # Decide whether to process this row
+                if rows is not None and idx not in rows:
+                    continue
+
+                if start_row is not None and end_row is not None:
+                    if not (start_row <= idx <= end_row):
+                        continue
+
+                text_to_speak = row.get(TEXT_COLUMN_HEADER, "")
+
+                if not text_to_speak or text_to_speak.isspace():
+                    print(f"Skipping empty text at row {idx}")
+                    continue
+
+                save_path = os.path.join(OUTPUT_DIR, f"audio_{idx}.mp3")
+
+                try:
+                    gTTS(text=text_to_speak, lang="iw").save(save_path)
+                    print(f"Created audio for row {idx}: {save_path}")
+                except Exception as e:
+                    print(f"Error at row {idx}: {e}")
+
+    except FileNotFoundError:
+        print(f"CSV file not found: {path}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+
 def Question_TTS_Maker(path,TEXT_COLUMN_HEADER):
     CVS_FILE_PATH = path
 
@@ -88,9 +141,9 @@ if __name__ == "__main__":
     # Generate_TTS(text,audio_path)
     # Play_Audio(audio_path)
     TEXT_COLUMN_HEADER = 'query_nikud'
+    path = "/home/tom/PycharmProjects/seeandsay/frontend_demo/resources/query_database.csv"
 
-    Question_TTS_Maker( path = "/home/tom/PycharmProjects/seeandsay/frontend_demo/resources/query_database.csv",
-                        TEXT_COLUMN_HEADER=TEXT_COLUMN_HEADER)
+    # Question_TTS_Maker( path, TEXT_COLUMN_HEADER)
 
-
+    Question_TTS_Maker_Specific(path,TEXT_COLUMN_HEADER,[53])
 
